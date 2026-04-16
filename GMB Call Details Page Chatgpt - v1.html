@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Duroflex Call Analyser - Updated Call Detail</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;600;700&family=Fraunces:opsz,wght@9..144,400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    .heading-font { font-family: 'Fraunces', serif; }
+    .score-high { background:#dcfce7; color:#166534; border-color:#86efac; }
+    .score-med { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+    .score-low { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+    .score-neutral { background:#eff6ff; color:#1d4ed8; border-color:#93c5fd; }
+
+    .funnel-step {
+      position: relative;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 42px;
+      border: 1px solid #d1d5db;
+      white-space: nowrap;
+      padding: 0 18px;
+    }
+    .funnel-step.first {
+      clip-path: polygon(0% 0%, 88% 0%, 100% 50%, 88% 100%, 0% 100%);
+      border-radius: 10px 0 0 10px;
+      padding-right: 28px;
+    }
+    .funnel-step.middle {
+      clip-path: polygon(0% 0%, 88% 0%, 100% 50%, 88% 100%, 0% 100%, 12% 50%);
+      margin-left: -10px;
+      padding-left: 24px;
+      padding-right: 28px;
+    }
+    .funnel-step.last {
+      clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 12% 50%);
+      margin-left: -10px;
+      padding-left: 24px;
+      border-radius: 0 10px 10px 0;
+    }
+    .funnel-active {
+      background: linear-gradient(to right, #3b82f6, #2563eb);
+      color: white;
+      border-color: #2563eb;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.18);
+    }
+    .funnel-inactive {
+      background: #f3f4f6;
+      color: #6b7280;
+      border-color: #d1d5db;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div class="max-w-[1600px] mx-auto px-8 py-10 relative z-10">
+
+    <!-- Top Navigation -->
+    <div class="flex items-center justify-between mb-10">
+      <a href="#" class="text-base font-medium text-gray-600 hover:text-gray-900 transition tracking-wide flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+        BACK TO STORE CALLS
+      </a>
+
+      <div class="flex gap-3 items-center flex-wrap justify-end">
+        <span class="inline-flex items-center px-5 py-2.5 bg-white rounded-lg text-sm text-gray-600 border border-gray-300 font-mono tracking-wider shadow-sm">
+          ID: CALL-7338983454
+        </span>
+
+        <span class="inline-flex items-center px-5 py-2.5 bg-white rounded-lg text-sm border border-gray-300 shadow-sm text-blue-700">
+          <span class="font-semibold">Objective:</span>&nbsp;Sales Lead
+        </span>
+
+        <span class="inline-flex items-center gap-2 px-5 py-2.5 bg-white rounded-lg text-sm border border-gray-300 shadow-sm">
+          <span class="font-semibold text-gray-600">Intent:</span>
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span>
+          <span class="font-bold text-green-700">HIGH</span>
+        </span>
+
+        <span class="inline-flex items-center gap-2 px-5 py-2.5 bg-white rounded-lg text-sm border border-gray-300 shadow-sm">
+          <span class="font-semibold text-gray-600">Experience:</span>
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+          <span class="font-bold text-yellow-700">MEDIUM</span>
+        </span>
+
+        <span class="inline-flex items-center gap-2 px-5 py-2.5 bg-white rounded-lg text-sm border border-gray-300 shadow-sm">
+          <span class="font-semibold text-gray-600">Funnel:</span>
+          <span class="font-bold text-blue-700">ACTION</span>
+        </span>
+
+        <a href="https://recordings.dashloc.com/v112/2026/03/4208/inbound/7338983454177306368969aece091f4d1.wav"
+          target="_blank"
+          class="inline-flex items-center px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition tracking-wide shadow-md">
+          LISTEN TO CALL
+        </a>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-10 mb-10 shadow-lg">
+      <div class="border-l-4 border-blue-500 pl-5 mb-8">
+        <h1 class="text-4xl font-bold text-gray-900 heading-font">Store Call Analysis</h1>
+        <p class="text-base text-gray-500 mt-2">
+          GMB Inbound • Duroflex • COCO VELACHERRY • Chennai, Tamil Nadu
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <!-- Block 1 -->
+        <div class="xl:col-span-3 border border-gray-200 rounded-2xl p-6 bg-gray-50">
+          <div class="mb-5">
+            <span class="font-mono text-xs text-gray-500 tracking-widest uppercase">Store & Call Info</span>
+            <h2 class="text-2xl font-semibold text-gray-900 mt-1 heading-font">Call Snapshot</h2>
+          </div>
+
+          <div class="space-y-4 text-sm">
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Brand</span>
+              <span class="text-gray-900 font-semibold text-base">Duroflex</span>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Store Name</span>
+              <span class="text-gray-900 font-semibold text-base">COCO VELACHERRY</span>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Location</span>
+              <span class="text-gray-900 font-medium text-base">Velachery, Chennai, Tamil Nadu</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Call Date</span>
+                <span class="font-mono text-base text-gray-900">########</span>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Duration</span>
+                <span class="font-mono text-base text-gray-900">93s</span>
+              </div>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Customer Number</span>
+              <span class="font-mono text-base text-gray-900">7338983454</span>
+            </div>
+
+            <div>
+              <span class="text-xs text-blue-600 uppercase tracking-wider font-bold block mb-1">Call Type</span>
+              <span class="text-blue-700 font-semibold text-base">Sales Lead (Post-Store Visit)</span>
+            </div>
+
+
+          </div>
+        </div>
+
+        <!-- Block 2 -->
+        <div class="xl:col-span-3 border border-gray-200 rounded-2xl p-6 bg-gray-50">
+          <div class="mb-5">
+            <span class="font-mono text-xs text-gray-500 tracking-widest uppercase">Customer Profile</span>
+            <h2 class="text-2xl font-semibold text-gray-900 mt-1 heading-font">Meta Data</h2>
+          </div>
+
+          <div class="space-y-4 text-sm">
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Customer Name</span>
+              <span class="text-gray-900 font-semibold text-base">Selvambigai</span>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Customer Location</span>
+              <span class="text-gray-900 font-medium text-base">Vandavasi</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Language</span>
+                <span class="text-gray-900 font-medium text-base">English</span>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Gender</span>
+                <span class="text-gray-900 font-medium text-base">Male</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Age Group</span>
+                <span class="text-gray-900 font-medium text-base">Middle Aged (30-50)</span>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Income Group</span>
+                <span class="text-gray-900 font-medium text-base">Premium</span>
+              </div>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Persona</span>
+              <span class="text-gray-900 font-semibold text-base">Premium Buyer</span>
+            </div>
+
+            <div>
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Decision Maker</span>
+              <span class="text-gray-900 font-medium text-base">Caller</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Block 3 -->
+        <div class="xl:col-span-6 border border-gray-200 rounded-2xl p-6 bg-white">
+          <div class="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <span class="font-mono text-xs text-gray-500 tracking-widest uppercase">Call Performance Basics</span>
+              <h2 class="text-2xl font-semibold text-gray-900 mt-1 heading-font">Summary & Signals</h2>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Overall Call Quality</span>
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-med">MEDIUM</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">Customer Enthusiasm</span>
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-med">MEDIUM</span>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">Converted</span>
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-low">NO</span>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">Revenue</span>
+              <span class="text-lg font-bold text-gray-900">₹0</span>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <span class="text-xs font-bold text-blue-700 uppercase tracking-widest block mb-3">Call Summary</span>
+            <p class="text-base text-gray-700 leading-relaxed font-medium">
+              A repeat customer, who has previously purchased four beds from the Velachery store, called to inquire about purchasing another mattress. The main need was to confirm whether delivery could be done directly to Vandavasi. The agent remained polite and promised a callback from the team, but could not provide definitive logistical clarity during the call. The customer made it clear that purchase intent is strong, but the decision depends on delivery feasibility.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Critical Sales Intelligence -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-10 shadow-lg">
+      <div class="mb-8 border-b-2 border-gray-200 pb-4">
+        <h2 class="text-2xl font-bold text-gray-900 heading-font">Critical Sales Intelligence</h2>
+      </div>
+
+      <!-- Product Intelligence + Needs -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-5">Product Intelligence</h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Category</span>
+              <span class="text-gray-900 font-semibold">DUROPEDIC MATTRESS</span>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Sub Category</span>
+              <span class="text-gray-900 font-semibold">Airboost</span>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Collection</span>
+              <span class="text-gray-900 font-semibold">Airboost 3.6</span>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Customer Verbatim</span>
+              <span class="text-gray-900 font-semibold">Airbox 3.1</span>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Narrow Down Stage</span>
+              <span class="text-gray-900 font-semibold">Collection</span>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded-xl p-4">
+              <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">Size Mentioned</span>
+              <span class="text-gray-900 font-semibold">Not Mentioned</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+          <h3 class="text-lg font-bold text-gray-900 mb-5">Customer Needs Description</h3>
+
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <p class="text-base text-gray-700 leading-relaxed">
+              The customer wants to purchase another mattress similar to their previous “Airbox 3.1” / Airboost purchase and needs confirmation on whether Duroflex can deliver directly to Vandavasi, Tiruvannamalai district.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Intent + Barriers + Funnel -->
+      <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        <div class="xl:col-span-5 space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-5">Customer Intent</h3>
+
+            <div class="space-y-4">
+              <div class="bg-white border border-gray-200 rounded-xl p-5">
+                <div class="flex items-start justify-between gap-4 mb-2">
+                  <div>
+                    <p class="text-sm text-gray-600 font-bold uppercase tracking-wider">Intent to Visit Store</p>
+                  </div>
+                  <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-med">MEDIUM</span>
+                </div>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  The customer is already familiar with the store and products, having bought four beds previously. They are ready to book if delivery is confirmed, so visit certainty is moderate while purchase intent remains strong.
+                </p>
+              </div>
+
+              <div class="bg-white border border-gray-200 rounded-xl p-5">
+                <div class="flex items-start justify-between gap-4 mb-2">
+                  <div>
+                    <p class="text-sm text-gray-600 font-bold uppercase tracking-wider">Intent to Purchase</p>
+                  </div>
+                  <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-high">HIGH</span>
+                </div>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  The customer is a repeat buyer with a clear product preference and explicitly said they will book if delivery is confirmed. Purchase readiness is strong, with logistics as the only major blocker.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-red-700 mb-5">Customer Barriers</h3>
+
+            <div class="space-y-4">
+              <div class="bg-white border border-red-100 rounded-xl p-5">
+                <p class="text-sm text-red-600 font-bold uppercase tracking-wider mb-2">Purchase Barrier</p>
+                <p class="text-base font-semibold text-gray-900 mb-1">Others - Specify</p>
+                <p class="text-sm text-gray-600">Uncertainty regarding direct delivery to the customer’s specific location in Vandavasi.</p>
+              </div>
+
+              <div class="bg-white border border-red-100 rounded-xl p-5">
+                <p class="text-sm text-red-600 font-bold uppercase tracking-wider mb-2">Store Visit Barrier</p>
+                <p class="text-base font-semibold text-gray-900 mb-1">Distance</p>
+                <p class="text-sm text-gray-600">The customer is exploring delivery to Vandavasi, which is far from the Velachery store.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="xl:col-span-7 space-y-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-5">Funnel Stage & Timeline</h3>
+
+            <div class="flex items-center overflow-x-auto pb-2 mb-6">
+              <div class="funnel-step first funnel-inactive min-w-[150px]">Awareness</div>
+              <div class="funnel-step middle funnel-inactive min-w-[160px]">Consideration</div>
+              <div class="funnel-step middle funnel-active min-w-[140px]">Action</div>
+              <div class="funnel-step last funnel-inactive min-w-[170px]">Already Purchased</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white border border-gray-200 rounded-xl p-5">
+                <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Funnel Stage</p>
+                <p class="text-lg font-semibold text-gray-900 mb-2">Action</p>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  The customer stated “I will book” if delivery is confirmed, showing they are near final decision and only need logistical validation.
+                </p>
+              </div>
+
+              <div class="bg-white border border-gray-200 rounded-xl p-5">
+                <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Timeline to Purchase</p>
+                <p class="text-lg font-semibold text-gray-900 mb-2">Short Term (Within a Week)</p>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                  The customer is actively seeking confirmation to proceed with booking and appears ready to act quickly once the barrier is cleared.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-blue-700 mb-4">Immediate Follow-up Priority</h3>
+            <p class="text-base text-gray-700 leading-relaxed">
+              <span class="font-semibold">Immediate (Within 4 hours)</span> — this is a high-readiness repeat buyer. Fast confirmation on delivery feasibility is critical to prevent loss to a closer competitor.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Experience -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-10 shadow-lg">
+      <div class="mb-8 border-b-2 border-gray-200 pb-4">
+        <h2 class="text-2xl font-bold text-gray-900 heading-font">Customer Experience</h2>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p class="text-sm text-gray-600 font-bold uppercase tracking-wider">Agent Experience</p>
+              <h3 class="text-lg font-semibold text-gray-900 mt-1">Customer Experience with Agent</h3>
+            </div>
+            <div class="text-right">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-med">MEDIUM</span>
+              <p class="text-xs text-gray-500 mt-2">NPS: 7</p>
+            </div>
+          </div>
+
+          <p class="text-sm text-gray-600 leading-relaxed mb-4">
+            The agent was professional and polite, but failed to provide immediate clarity on a standard logistics question, which could push the customer to look elsewhere.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white border border-green-200 rounded-xl p-4">
+              <p class="text-xs text-green-700 font-bold uppercase tracking-wider mb-2">What went well</p>
+              <p class="text-sm text-gray-700">Maintained a polite tone, used a professional greeting, and identified the need to escalate the logistics query.</p>
+            </div>
+
+            <div class="bg-white border border-red-200 rounded-xl p-4">
+              <p class="text-xs text-red-700 font-bold uppercase tracking-wider mb-2">What was missed</p>
+              <p class="text-sm text-gray-700">Did not capture detailed product needs for the new purchase and used no conversion hooks to secure the lead.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p class="text-sm text-gray-600 font-bold uppercase tracking-wider">Brand Experience</p>
+              <h3 class="text-lg font-semibold text-gray-900 mt-1">Customer Experience with Brand</h3>
+            </div>
+            <div class="text-right">
+              <span class="inline-flex items-center px-3 py-1.5 rounded-full border text-sm font-bold score-high">HIGH</span>
+              <p class="text-xs text-gray-500 mt-2">NPS: 9</p>
+            </div>
+          </div>
+
+          <p class="text-sm text-gray-600 leading-relaxed mb-4">
+            The customer explicitly praised the earlier product as “very good” and highlighted repeat purchases, indicating strong trust in the Duroflex brand.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white border border-green-200 rounded-xl p-4">
+              <p class="text-xs text-green-700 font-bold uppercase tracking-wider mb-2">Positive signal</p>
+              <p class="text-sm text-gray-700">Product quality from the Airboost range was appreciated and repeat purchase behavior indicates loyalty.</p>
+            </div>
+
+            <div class="bg-white border border-red-200 rounded-xl p-4">
+              <p class="text-xs text-red-700 font-bold uppercase tracking-wider mb-2">Brand friction</p>
+              <p class="text-sm text-gray-700">Potential delivery friction for non-metro locations like Vandavasi could weaken conversion despite high trust.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversion Hooks -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-10 shadow-lg">
+      <div class="mb-8 border-b-2 border-gray-200 pb-4">
+        <h2 class="text-2xl font-bold text-gray-900 heading-font">Conversion Hooks Utilization</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Visit Invite</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+          <p class="text-sm text-gray-600">No store footfall driver was used during the conversation.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">WhatsApp Connection</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+          <p class="text-sm text-gray-600">No WhatsApp connection was created to continue the lead follow-up.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Video Demo</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+          <p class="text-sm text-gray-600">No video demo was offered as a remote engagement option.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Mattress Measurement</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+          <p class="text-sm text-gray-600">No measurement guidance was used to move the customer closer to purchase.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Store Offers</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+          <p class="text-sm text-gray-600">No offer, EMI, or loyalty incentive was used during the call.</p>
+        </div>
+      </div>
+
+      <div class="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <p class="text-sm text-blue-700 font-bold uppercase tracking-wider mb-2">Relevant hooks missed</p>
+        <p class="text-sm text-gray-700 leading-relaxed">
+          The most relevant missed hooks were <span class="font-semibold">WhatsApp Connection</span> to share delivery confirmation and product details, and <span class="font-semibold">In-Store Offers / EMI</span> to retain a loyal repeat customer who may otherwise purchase from a local showroom.
+        </p>
+      </div>
+    </div>
+
+    <!-- Probing Quality -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-10 shadow-lg">
+      <div class="mb-8 border-b-2 border-gray-200 pb-4">
+        <h2 class="text-2xl font-bold text-gray-900 heading-font">Probing Quality</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Why Buying</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+          </div>
+          <p class="text-sm text-gray-500 mb-2">Asked: No</p>
+          <p class="text-sm text-gray-600">Agent did not probe into the reason behind the new purchase.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Whom For</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+          </div>
+          <p class="text-sm text-gray-500 mb-2">Asked: No</p>
+          <p class="text-sm text-gray-600">Agent did not ask who the mattress is intended for.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Visit Intent</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+          </div>
+          <p class="text-sm text-gray-500 mb-2">Asked: No</p>
+          <p class="text-sm text-gray-600">No attempt was made to understand the customer’s ETA or visit timeline.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Current Product</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+          </div>
+          <p class="text-sm text-gray-500 mb-2">Asked: No</p>
+          <p class="text-sm text-gray-600">Agent did not ask about the current bed frame or mattress being replaced.</p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-sm font-bold text-gray-700 uppercase tracking-wider">Budget Explored</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+          </div>
+          <p class="text-sm text-gray-500 mb-2">Asked: No</p>
+          <p class="text-sm text-gray-600">No budget exploration took place during the call.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Scorecard + RELAX -->
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-10">
+      <!-- Agent Scorecard -->
+      <div class="xl:col-span-6 bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg">
+        <div class="mb-8 border-b-2 border-gray-200 pb-4">
+          <h2 class="text-2xl font-bold text-gray-900 heading-font">Agent Score Card</h2>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">Agent Nature</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-neutral">RESPONSIVE</span>
+            </div>
+            <p class="text-sm text-gray-600">The agent reacted to the customer's query but did not take control of the sales process.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">Footfall Driving Skill</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+            </div>
+            <p class="text-sm text-gray-600">No effort was made to invite the customer to the store or close the next step strongly.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">Objection Handling</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-med">MEDIUM</span>
+            </div>
+            <p class="text-sm text-gray-600">The agent managed the delivery objection by promising a callback, which is safe but passive.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">Explanation Quality</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+            </div>
+            <p class="text-sm text-gray-600">The delivery explanation was vague and lacked clear next-step certainty.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">Product Knowledge</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-med">MEDIUM</span>
+            </div>
+            <p class="text-sm text-gray-600">The agent recognized the earlier purchase but did not use product knowledge to advance the conversation.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+            <p class="text-sm text-blue-700 font-bold uppercase tracking-wider mb-3">Agent Learnings</p>
+            <ul class="space-y-2 text-sm text-gray-700 list-disc pl-5">
+              <li>Clarify delivery capability for common out-of-station locations using a quick reference guide.</li>
+              <li>When a repeat customer calls, acknowledge loyalty and offer a loyalty benefit or cross-sell opportunity.</li>
+              <li>Capture mattress requirements such as size and model even when escalating the query.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- RELAX -->
+      <div class="xl:col-span-6 bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg">
+        <div class="mb-8 border-b-2 border-gray-200 pb-4">
+          <h2 class="text-2xl font-bold text-gray-900 heading-font">RELAX Framework</h2>
+        </div>
+
+        <div class="space-y-4">
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">R — Reach Out</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-high">HIGH</span>
+            </div>
+            <p class="text-sm text-gray-600">Professional greeting and clear self-identification.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">E — Explore Needs</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+            </div>
+            <p class="text-sm text-gray-600">The agent did not ask about size, model, intended user, or detailed need for the new bed.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">L — Link Product</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+            </div>
+            <p class="text-sm text-gray-600">No product recommendation was properly linked to the customer’s current requirement.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">A — Add Value</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">LOW</span>
+            </div>
+            <p class="text-sm text-gray-600">No offers, loyalty benefits, EMI, or accessory suggestions were used to add value.</p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div class="flex justify-between items-start gap-4 mb-2">
+              <p class="text-base font-bold text-gray-900">X — Xpress Closing</p>
+              <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-med">MEDIUM</span>
+            </div>
+            <p class="text-sm text-gray-600">The closing remained polite, but no specific callback timing or commitment was locked in.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Closing Intelligence -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
+      <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg">
+        <div class="mb-8 border-b-2 border-gray-200 pb-4">
+          <h2 class="text-2xl font-bold text-gray-900 heading-font">Next Actions</h2>
+        </div>
+
+        <div class="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mb-6">
+          <p class="text-sm text-blue-700 font-bold uppercase tracking-wider mb-3">Immediate action</p>
+          <p class="text-base text-gray-700 leading-relaxed font-semibold">
+            The agent will forward the customer's number to the team to confirm delivery feasibility to Vandavasi.
+          </p>
+        </div>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-6">
+          <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-3">Recommended internal follow-up</p>
+          <ul class="space-y-2 text-sm text-gray-700 list-disc pl-5">
+            <li>Confirm delivery feasibility and turnaround time for Vandavasi.</li>
+            <li>Reconnect with customer on call or WhatsApp with clarity and product recommendation.</li>
+            <li>Use loyalty benefit or offer framing to prevent showroom switching.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg">
+        <div class="mb-8 border-b-2 border-gray-200 pb-4">
+          <h2 class="text-2xl font-bold text-gray-900 heading-font">Airboost Tracking</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Agent Mentioned Airboost</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Customer Mentioned Airboost</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-high">YES</span>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Upsell Possible</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-high">YES</span>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <p class="text-sm text-gray-600 font-bold uppercase tracking-wider mb-2">Upsell Attempted</p>
+            <span class="inline-flex items-center px-3 py-1 rounded-full border text-xs font-bold score-low">NO</span>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+          <p class="text-sm text-yellow-700 font-bold uppercase tracking-wider mb-2">Opportunity</p>
+          <p class="text-sm text-gray-700 leading-relaxed">
+            Since the customer already trusts the Airboost line and is considering another purchase, this was a missed opportunity to recommend a higher collection or close with a more confident product-led pitch.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transcript -->
+    <div class="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden mb-10 shadow-lg">
+      <div class="flex justify-between items-center p-8 border-b-2 border-gray-200">
+        <h2 class="text-2xl font-bold text-gray-900 heading-font">Call Transcript</h2>
+        <div class="flex gap-3">
+          <a href="#"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold transition border border-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+              <path d="M12 18v-6M9 15l3 3 3-3" />
+            </svg>
+            Download
+          </a>
+        </div>
+      </div>
+
+      <div class="max-h-[700px] overflow-y-auto p-8 bg-gray-50 space-y-4">
+        <div class="flex justify-start mb-3 px-2">
+          <div class="max-w-[78%] bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-gray-600">Agent</p>
+            <p class="text-base text-gray-800 leading-relaxed">Hello, good evening. Thanks for calling Velachery Duroflex. This is Rajan. How can I assist you?</p>
+            <p class="text-xs mt-1.5 text-gray-500">00:00</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Hello, Rajan. Last week we ordered a bed.</p>
+            <p class="text-xs mt-1.5 text-green-700">00:04</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Airbox 3.1. Delivery is done. It's very good.</p>
+            <p class="text-xs mt-1.5 text-green-700">00:12</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Now my doubt is, I want another bed. If we order now, but it has to go to Vandavasi, will you deliver directly there?</p>
+            <p class="text-xs mt-1.5 text-green-700">00:36</p>
+          </div>
+        </div>
+
+        <div class="flex justify-start mb-3 px-2">
+          <div class="max-w-[78%] bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-gray-600">Agent</p>
+            <p class="text-base text-gray-800 leading-relaxed">We will do it, sir. How it works is, if it's from the main, it will go. Otherwise, it will come to the main hub and from there you might have to take it in a vehicle.</p>
+            <p class="text-xs mt-1.5 text-gray-500">00:47</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">If you can confirm that and tell me, I will book. Otherwise, I will book in some showroom near that side.</p>
+            <p class="text-xs mt-1.5 text-green-700">00:55</p>
+          </div>
+        </div>
+
+        <div class="flex justify-start mb-3 px-2">
+          <div class="max-w-[78%] bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-gray-600">Agent</p>
+            <p class="text-base text-gray-800 leading-relaxed">Okay, sir. I'll forward your number to the team now. They will call you, sir.</p>
+            <p class="text-xs mt-1.5 text-gray-500">01:06</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Okay. We already bought four beds from this showroom.</p>
+            <p class="text-xs mt-1.5 text-green-700">01:09</p>
+          </div>
+        </div>
+
+        <div class="flex justify-start mb-3 px-2">
+          <div class="max-w-[78%] bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-gray-600">Agent</p>
+            <p class="text-base text-gray-800 leading-relaxed">Your name, sir?</p>
+            <p class="text-xs mt-1.5 text-gray-500">01:12</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Selvambigai. Billing name is Selvambigai.</p>
+            <p class="text-xs mt-1.5 text-green-700">01:14</p>
+          </div>
+        </div>
+
+        <div class="flex justify-start mb-3 px-2">
+          <div class="max-w-[78%] bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-gray-600">Agent</p>
+            <p class="text-base text-gray-800 leading-relaxed">Selvambigai, yes. Okay, sir.</p>
+            <p class="text-xs mt-1.5 text-gray-500">01:18</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end mb-3 px-2">
+          <div class="max-w-[78%] bg-green-100 border border-green-200 rounded-2xl px-4 py-3 shadow-sm">
+            <p class="text-xs font-semibold mb-1.5 text-green-800">Customer</p>
+            <p class="text-base text-gray-900 leading-relaxed">Okay. Thank you.</p>
+            <p class="text-xs mt-1.5 text-green-700">01:30</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center pt-8 border-t-2 border-gray-200">
+      <p class="text-base text-gray-500">Duroflex Store Call Intelligence • Powered by AI Analysis</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,802 @@
+### 2. Call Listing Level View (`GmbReportList.jsx`)
+This is the tabular listing view that displays all the Google My Business (GMB) inbound calls.
+
+```jsx
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Phone, BarChart3, DollarSign, HelpCircle, Download, Upload, LogOut, ArrowLeft } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://duroflex-call-analyser.onrender.com';
+
+// Helper to safely get nested values
+const getField = (obj, ...paths) => {
+  for (const path of paths) {
+    const keys = path.split('.');
+    let value = obj;
+    for (const key of keys) {
+      if (value && typeof value === 'object') {
+        value = value[key];
+      } else {
+        value = undefined;
+        break;
+      }
+    }
+    if (value !== undefined && value !== null) return value;
+  }
+  return null;
+};
+
+// Flatten nested JSON objects for CSV export
+const flattenObject = (obj, prefix = '') => {
+  const result = {};
+  Object.entries(obj || {}).forEach(([key, value]) => {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.assign(result, flattenObject(value, newKey));
+    } else if (Array.isArray(value)) {
+      result[newKey] = value.map(item => (item && typeof item === 'object' ? JSON.stringify(item) : item)).join('; ');
+    } else {
+      result[newKey] = value;
+    }
+  });
+  return result;
+};
+
+const toCsvValue = (value) => {
+  if (value === null || value === undefined) return '';
+  const str = String(value).replace(/"/g, '""');
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str}"`;
+  }
+  return str;
+};
+
+const exportReportsAsCsv = (reports, filename) => {
+  if (!reports || !reports.length) {
+    alert('No reports to download');
+    return;
+  }
+  const flattened = reports.map(r => flattenObject(r));
+  const headers = Array.from(new Set(flattened.flatMap(item => Object.keys(item))));
+  const rows = [headers.join(',')];
+  flattened.forEach(item => {
+    const row = headers.map(h => toCsvValue(item[h]));
+    rows.push(row.join(','));
+  });
+  const csvContent = rows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+const GmbReportList = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Filter states
+  const [selectedRegion, setSelectedRegion] = useState('All');
+  const [selectedStore, setSelectedStore] = useState('All');
+  const [selectedValue, setSelectedValue] = useState('All');
+  const [selectedCustomerExp, setSelectedCustomerExp] = useState('All');
+  const [timeRange, setTimeRange] = useState('30');
+  const [selectedIntent, setSelectedIntent] = useState('All');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 999999; // Show all records
+
+  // External filter from aggregated dashboard
+  const filterIds = location.state?.filterIds;
+  const filterDescription = location.state?.filterDescription;
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/GmbCalls`);
+      const data = await res.json();
+      setReports(data.reports || []);
+    } catch (err) {
+      setError('Failed to load call reports');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('admin_email');
+    navigate('/');
+  };
+
+  // Helper functions (defined before useMemo that uses them)
+  function normalizeRating(val) {
+    if (!val) return 'Medium';
+    const str = String(val).toUpperCase().trim();
+    if (str.includes('HIGH') || str === 'H') return 'High';
+    if (str.includes('LOW') || str === 'L') return 'Low';
+    return 'Medium';
+  }
+
+  function formatConsiderationValue(val) {
+    if (!val || val === 'N/A') return { display: 'N/A', bucket: 'low' };
+    const str = String(val).toLowerCase();
+    
+    // Check for exact metadata values first
+    if (str === '50k+' || str === '50k') return { display: '50k+', bucket: '50k' };
+    if (str === '25k-50k' || str === '25k to 50k') return { display: '25k to 50k', bucket: '25k' };
+    if (str === '15k-25k' || str === '15k to 25k') return { display: '15k to 25k', bucket: '15k' };
+    if (str === 'below 15k' || str.includes('below')) return { display: 'Below 15k', bucket: 'low' };
+    
+    // Pattern matching
+    if (str.includes('premium') || str.includes('king')) return { display: '50k+', bucket: '50k' };
+    if (str.includes('50k') || str.includes('50000') || str.startsWith('50')) return { display: '50k+', bucket: '50k' };
+    if (str.includes('queen') || (str.includes('25') && str.includes('50'))) return { display: '25k to 50k', bucket: '25k' };
+    if (str.includes('25k') || str.includes('25000')) return { display: '25k to 50k', bucket: '25k' };
+    if (str.includes('double') || (str.includes('15') && str.includes('25'))) return { display: '15k to 25k', bucket: '15k' };
+    if (str.includes('15k') || str.includes('15000')) return { display: '15k to 25k', bucket: '15k' };
+    if (str.includes('single') || str.includes('budget')) return { display: 'Below 15k', bucket: 'low' };
+    
+    // Check for range like "45000-67000"
+    const rangeMatch = val.match(/(\d+)-(\d+)/);
+    if (rangeMatch) {
+      const high = parseInt(rangeMatch[2]);
+      if (high >= 50000) return { display: '50k+', bucket: '50k' };
+      if (high >= 25000) return { display: '25k to 50k', bucket: '25k' };
+      if (high >= 15000) return { display: '15k to 25k', bucket: '15k' };
+      return { display: 'Below 15k', bucket: 'low' };
+    }
+    
+    // Default: keep original value
+    return { display: val, bucket: 'low' };
+  }
+
+  // Process reports with extracted fields
+  const processedReports = useMemo(() => {
+    return reports.map(report => {
+      const analysis = report.analysis || {};
+      
+      // Filter out calls with duration < 30 seconds
+      const durationSeconds = report.duration_seconds;
+      if (durationSeconds !== null && durationSeconds !== undefined && durationSeconds < 30) {
+        return null;
+      }
+      
+      // Extract fields using new schema paths with fallbacks
+      const callObjectiveType = getField(analysis, '1_Call_Objective.Type', 'Functional.Call_Objective_Theme') || '';
+      const intentRating = getField(analysis, '2_Intent_to_Purchase.Rating', 'Customer_Information.Intent_to_Purchase_Rating') || 'Medium';
+      const customerExp = getField(analysis, '3_Customer_Experience.Rating', 'Customer_Information.Customer_Satisfaction_Score') || 'Medium';
+      const callObjective = getField(analysis, '1_Call_Objective.Objective_Phrase', 'Functional.Call_Objective_Theme') || 'N/A';
+      const storeVisitRating = getField(analysis, '9_Invitations.Store_Visit.Rating', 'Agent_Areas.The_Invitation_to_Visit.Attempted') || 'Low';
+      const videoDemoRating = getField(analysis, '9_Invitations.Video_Demo.Rating') || 'Low';
+      const region = getField(analysis, 'MetaData.Call_Region') || report.region || 'Unknown';
+      
+      // Get consideration value from metadata (prioritize metadata over product intelligence)
+      const metadata = analysis.MetaData || {};
+      const considerationValue = metadata.Consideration_Value || getField(analysis, '5_Product_Intelligence.Approx_Order_Value') || 'N/A';
+      
+      // Determine lead type
+      let leadType = 'Sales Lead';
+      const objType = callObjectiveType.toLowerCase();
+      if (objType.includes('post') || objType.includes('service') || objType.includes('complaint') || objType.includes('delivery')) {
+        leadType = 'Post-Sales';
+      }
+      
+      // Check if already purchased by examining funnel stage
+      const funnelStage = getField(analysis, '4_Funnel_Analysis.Stage', 'Customer_Information.Customer_Stage_AIDA') || '';
+      const funnelStageLower = funnelStage.toLowerCase();
+      const isPurchased = funnelStageLower.includes('already purchased');
+      
+      // Normalize intent for display
+      let intent = normalizeRating(intentRating);
+      if (isPurchased) {
+        intent = 'Already Purchased';
+      }
+      
+      // Determine invited to store
+      let invitedToStore = 'No';
+      if (typeof storeVisitRating === 'boolean') {
+        invitedToStore = storeVisitRating ? 'Yes' : 'No';
+      } else {
+        const rating = String(storeVisitRating).toLowerCase();
+        invitedToStore = (rating === 'high' || rating === 'medium' || rating === 'h' || rating === 'm') ? 'Yes' : 'No';
+      }
+      
+      // Determine invited to video demo
+      let invitedToVideo = 'No';
+      if (typeof videoDemoRating === 'boolean') {
+        invitedToVideo = videoDemoRating ? 'Yes' : 'No';
+      } else {
+        const rating = String(videoDemoRating).toLowerCase();
+        invitedToVideo = (rating === 'high' || rating === 'medium' || rating === 'h' || rating === 'm') ? 'Yes' : 'No';
+      }
+      
+      // Parse call date
+      let callDate = null;
+      if (report.call_date) {
+        // Try parsing various formats
+        const dateStr = report.call_date;
+        if (dateStr.includes('-')) {
+          const parts = dateStr.split('-');
+          if (parts[0].length === 2) {
+            // DD-MM-YYYY format
+            callDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          } else {
+            callDate = new Date(dateStr);
+          }
+        } else {
+          callDate = new Date(dateStr);
+        }
+        if (isNaN(callDate.getTime())) callDate = null;
+      }
+      if (!callDate && report.upload_timestamp) {
+        callDate = new Date(report.upload_timestamp);
+      }
+      if (!callDate) callDate = new Date();
+      
+      // Format consideration value for display and bucket
+      const valueData = formatConsiderationValue(considerationValue);
+      
+      return {
+        ...report,
+        callDate,
+        region,
+        leadType,
+        intent,
+        customerExp: normalizeRating(customerExp),
+        callObjective,
+        considerationValue: valueData.display,
+        valueBucket: valueData.bucket,
+        invitedToStore,
+        invitedToVideo,
+        isPurchased
+      };
+    }).filter(Boolean);
+  }, [reports]);
+
+  // Get unique regions and stores for filters
+  const regions = useMemo(() => {
+    const uniqueRegions = [...new Set(processedReports.map(r => r.region).filter(r => r && r !== 'Unknown'))];
+    return ['All', ...uniqueRegions.sort()];
+  }, [processedReports]);
+
+  const stores = useMemo(() => {
+    const uniqueStores = [...new Set(processedReports.map(r => r.store_name).filter(Boolean))];
+    return ['All', ...uniqueStores.sort()];
+  }, [processedReports]);
+
+  // Apply filters
+  const filteredReports = useMemo(() => {
+    let result = processedReports;
+
+    // External filter from aggregated dashboard
+    if (filterIds && Array.isArray(filterIds) && filterIds.length > 0) {
+      result = result.filter(r => filterIds.includes(r.call_id));
+      return result; // Skip other filters when using external filter
+    }
+
+    // Region filter
+    if (selectedRegion !== 'All') {
+      result = result.filter(r => r.region === selectedRegion);
+    }
+
+    // Store filter
+    if (selectedStore !== 'All') {
+      result = result.filter(r => r.store_name === selectedStore);
+    }
+
+    // Consideration value filter
+    if (selectedValue !== 'All') {
+      result = result.filter(r => r.valueBucket === selectedValue);
+    }
+
+    // Customer Experience filter
+    if (selectedCustomerExp !== 'All') {
+      result = result.filter(r => r.customerExp === selectedCustomerExp);
+    }
+
+    // Time filter
+    if (timeRange !== 'all') {
+      const days = parseInt(timeRange);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      cutoff.setHours(0, 0, 0, 0);
+      result = result.filter(r => {
+        if (!r.callDate) return false;
+        const callDay = new Date(r.callDate);
+        callDay.setHours(0, 0, 0, 0);
+        return callDay >= cutoff;
+      });
+    }
+
+    // Intent filter
+    if (selectedIntent !== 'All') {
+      if (selectedIntent === 'Purchased') {
+        result = result.filter(r => r.isPurchased);
+      } else {
+        result = result.filter(r => r.intent === selectedIntent && !r.isPurchased);
+      }
+    }
+
+    return result;
+  }, [processedReports, filterIds, selectedRegion, selectedStore, selectedValue, selectedCustomerExp, timeRange, selectedIntent]);
+
+  // Calculate KPIs
+  const kpis = useMemo(() => {
+    const total = filteredReports.length;
+    const highIntent = filteredReports.filter(r => r.intent === 'High' && !r.isPurchased).length;
+    const salesLeads = filteredReports.filter(r => r.leadType === 'Sales Lead').length;
+    const postPurchase = filteredReports.filter(r => r.leadType === 'Post-Sales' || r.isPurchased).length;
+    
+    return {
+      total,
+      highIntentPercent: total > 0 ? Math.round((highIntent / total) * 100) : 0,
+      salesLeads,
+      postPurchase
+    };
+  }, [filteredReports]);
+
+  // Pagination
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredReports.slice(start, start + itemsPerPage);
+  }, [filteredReports, currentPage]);
+
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
+
+  // Reset filters
+  const handleResetFilters = () => {
+    setSelectedRegion('All');
+    setSelectedStore('All');
+    setSelectedValue('All');
+    setSelectedCustomerExp('All');
+    setTimeRange('30');
+    setSelectedIntent('All');
+    setCurrentPage(1);
+    // Clear external filter
+    if (filterIds) {
+      navigate('/Gmb_Inbound', { replace: true });
+    }
+  };
+
+  function formatDuration(seconds) {
+    if (!seconds) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function formatDate(date) {
+    if (!date) return { date: 'N/A', time: '' };
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const hours = d.getHours();
+    const mins = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return {
+      date: `${month} ${day}`,
+      time: `${hour12.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${ampm}`
+    };
+  }
+
+  function getIntentDotColor(intent) {
+    if (intent === 'High') return 'bg-emerald-500';
+    if (intent === 'Medium') return 'bg-amber-500';
+    return 'bg-red-500';
+  }
+
+  function getExpColor(exp) {
+    if (exp === 'High') return 'text-emerald-600 font-bold';
+    if (exp === 'Medium') return 'text-yellow-600 font-bold';
+    return 'text-red-600 font-bold';
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading call reports...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="max-w-[1800px] mx-auto px-8 py-8">
+        
+        {/* HEADER */}
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <Link 
+              to="/dashboard" 
+              className="text-xs font-bold text-gray-500 hover:text-gray-900 transition tracking-wide mb-1 inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              BACK TO DASHBOARD
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Fraunces', serif" }}>
+              GMB Inbound Calls
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Live feed of customer inquiries to store numbers</p>
+          </div>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={() => exportReportsAsCsv(filteredReports, 'gmb_calls_report.csv')}
+              className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+            <Link
+              to="/Gmb_Inbound/upload"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Upload CSV
+            </Link>
+            <Link
+              to="/Gmb_Inbound/analytics"
+              className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+            >
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 px-3 py-2.5 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* KPI SUMMARY ROW */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Total Calls</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{kpis.total}</p>
+            </div>
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+              <Phone className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">High Intent</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{kpis.highIntentPercent}%</p>
+            </div>
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Sales Leads</p>
+              <p className="text-2xl font-bold text-indigo-600 mt-1">{kpis.salesLeads}</p>
+            </div>
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+              <DollarSign className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Post Purchase</p>
+              <p className="text-2xl font-bold text-gray-500 mt-1">{kpis.postPurchase}</p>
+            </div>
+            <div className="p-2 bg-gray-100 text-gray-500 rounded-lg">
+              <HelpCircle className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        {/* External Filter Banner */}
+        {filterIds && (
+          <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+            <div className="text-sm font-semibold">
+              Showing filtered results{filterDescription ? `: ${filterDescription}` : ''} ({filteredReports.length} of {reports.length})
+            </div>
+            <button
+              onClick={handleResetFilters}
+              className="text-xs font-bold px-3 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
+
+        {/* FILTER STRIP */}
+        {!filterIds && (
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-center mb-8">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Filters:</span>
+            
+            {/* Region */}
+            <select
+              value={selectedRegion}
+              onChange={(e) => { setSelectedRegion(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              {regions.map(r => (
+                <option key={r} value={r}>{r === 'All' ? 'Region: All' : r}</option>
+              ))}
+            </select>
+
+            {/* Store */}
+            <select
+              value={selectedStore}
+              onChange={(e) => { setSelectedStore(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 max-w-[200px]"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              {stores.map(s => (
+                <option key={s} value={s}>{s === 'All' ? 'Store: All Stores' : s}</option>
+              ))}
+            </select>
+
+            {/* Consideration Value */}
+            <select
+              value={selectedValue}
+              onChange={(e) => { setSelectedValue(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              <option value="All">Consideration Value: All</option>
+              <option value="50k">50k+</option>
+              <option value="25k">25k to 50k</option>
+              <option value="15k">15k to 25k</option>
+              <option value="low">Below 15k</option>
+            </select>
+
+            {/* Customer Experience */}
+            <select
+              value={selectedCustomerExp}
+              onChange={(e) => { setSelectedCustomerExp(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              <option value="All">Customer Exp: All</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+
+            {/* Time */}
+            <select
+              value={timeRange}
+              onChange={(e) => { setTimeRange(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              <option value="1">Time: Last 1 Day</option>
+              <option value="7">Time: Last 7 Days</option>
+              <option value="30">Time: Last 30 Days</option>
+              <option value="90">Time: Last 3 Months</option>
+              <option value="all">Time: All Time</option>
+            </select>
+
+            {/* Purchase Intent */}
+            <select
+              value={selectedIntent}
+              onChange={(e) => { setSelectedIntent(e.target.value); setCurrentPage(1); }}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em'
+              }}
+            >
+              <option value="All">Purchase Intent: All</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+              <option value="Purchased">Already Purchased</option>
+            </select>
+
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-gray-400 font-medium">Showing {filteredReports.length} Results</span>
+              <button
+                onClick={handleResetFilters}
+                className="text-xs text-red-500 hover:text-red-700 font-bold uppercase tracking-wider"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TABLE SECTION */}
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+          <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Call ID</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Date & Time</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Store</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Duration</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Consideration Value</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Intent</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Customer Exp</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Call Objective</th>
+                  <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Invited to Store</th>
+                   <th className="sticky top-0 z-20 bg-gray-50 px-4 py-2.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Invited to Video</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedReports.length === 0 ? (
+                  <tr>
+                    <td colSpan="11" className="px-4 py-8 text-center text-gray-400">
+                      No calls match the current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedReports.map((report) => {
+                    const dateInfo = formatDate(report.callDate);
+                    return (
+                      <tr 
+                        key={report.call_id} 
+                        onClick={() => navigate(`/Gmb_Inbound/${report.call_id}`)}
+                        className="hover:bg-gray-50 transition cursor-pointer"
+                      >
+                        {/* Call ID */}
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs font-bold text-gray-500">
+                            {report.call_id ? report.call_id.slice(-8).toUpperCase() : 'N/A'}
+                          </span>
+                        </td>
+                        
+                        {/* Date & Time */}
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-semibold text-gray-900">{dateInfo.date}</div>
+                          <div className="text-xs text-gray-500">{dateInfo.time}</div>
+                        </td>
+                        
+                        {/* Store Name */}
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-gray-900">{report.store_name || 'Unknown'}</div>
+                          <div className="text-xs text-gray-500">{report.city}{report.state ? `, ${report.state.slice(0, 2).toUpperCase()}` : ''}</div>
+                        </td>
+                        
+                        {/* Duration */}
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-sm text-gray-600">{formatDuration(report.duration_seconds)}</span>
+                        </td>
+                        
+                        {/* Consideration Value */}
+                        <td className="px-4 py-3">
+                          <span className={`text-sm ${report.considerationValue === 'N/A' ? 'text-gray-400' : 'font-bold text-gray-900'}`}>
+                            {report.considerationValue}
+                          </span>
+                        </td>
+                        
+                        {/* Intent */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center">
+                            <span className={`h-2 w-2 rounded-full mr-2 ${getIntentDotColor(report.intent)}`}></span>
+                            <span className="font-bold text-gray-700 text-sm">{report.intent}</span>
+                          </div>
+                        </td>
+                        
+                        {/* Customer Exp */}
+                        <td className="px-4 py-3">
+                          <span className={`text-sm ${getExpColor(report.customerExp)}`}>
+                            {report.customerExp}
+                          </span>
+                        </td>
+                        
+                        {/* Call Objective */}
+                        <td className="px-4 py-3">
+                          <span className="text-sm text-gray-700 max-w-[150px] truncate block" title={report.callObjective}>
+                            {report.callObjective}
+                          </span>
+                        </td>
+                        
+                        {/* Invited to Store */}
+                        <td className="px-4 py-3">
+                          {report.invitedToStore === 'Yes' ? (
+                            <span className="text-sm font-bold text-green-600 flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Yes
+                            </span>
+                          ) : report.leadType === 'Post-Sales' ? (
+                            <span className="text-sm text-gray-400">N/A</span>
+                          ) : (
+                            <span className="text-sm font-bold text-red-400 flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              No
+                            </span>
+                          )}
+                        </td>
+                        
+                        {/* Invited to Video */}
+                        <td className="px-4 py-3">
+                          {report.invitedToVideo === 'Yes' ? (
+                            <span className="text-sm font-bold text-green-600 flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Yes
+                            </span>
+                          ) : report.leadType === 'Post-Sales' ? (
+                            <span className="text-sm text-gray-400">N/A</span>
+                          ) : (
+                            <span className="text-sm font-bold text-red-400 flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              No
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          
+          {/* Pagination */}
+          <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              Showing <span className="font-bold">all {filteredReports.length}</span> results
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default GmbReportList;
+```

@@ -1,0 +1,32 @@
+A. Filters: 
+1. Store name
+2. Call Type
+3. Intent to Purchase
+4. Intent to Visit Store
+5. NPS Rating - Agent
+6. NPS Rating - Brand
+7. 6_Product_Intelligence_Category
+
+
+B. Purchase Intent x Agent NPS Matrix
+	- As usual
+	- Remove Already Purchased
+	- <Each cell should be clickable and opens Call listing Page (relevant with matrix filters)>
+
+
+C. Store Performance Matrix:
+	- Store Name, Number of Calls, Number of Bad Calls (High Purchase Intent but Low Agent NPS/Customer Experience Calls), Avg Agent NPS, Avg Brand NPS, RELAX scores 
+	
+
+D. Price Bucket Performance Matrix:
+	- Price Bucket (MetaData_Customer_Income_Group),  Number of Calls, Number of Bad Calls (High Purchase Intent but Low Agent NPS/Customer Experience Calls), Avg Agent NPS, Avg Brand NPS, RELAX scores 
+	
+(Also give functionqality to Open All calls in Call listing Page)
+
+Remove:
+	- Upload Csv button
+	- Export Report button
+
+Note: Build your own code that is highly compatible with the existing code. 
+Do not change the existing code.
+Only use"E:\AntiGravity\GMB Calls Analyzer v3\GMB Calls - Analytics Dashbaord Reference Code Java.txt as a reference.

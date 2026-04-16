@@ -1,0 +1,46 @@
+# GMB Calls Analyzer v3 - Execution Guide
+
+To run the application, you need to start both the Python backend and the React frontend in separate terminal windows.
+
+## 1. Start the Backend (Python)
+The backend uses FastAPI to serve call data from the CSV file.
+
+```powershell
+# Navigate to the backend directory
+cd backend
+
+# (Optional) Create and activate a virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the server
+python -m uvicorn main:app --reload
+```
+*API location: http://localhost:8000*
+
+---
+
+## 2. Start the Frontend (Vite/React)
+The frontend provides the interactive dashboard and listing views.
+
+```powershell
+# Navigate to the frontend directory
+cd frontend
+
+# Install packages
+npm install
+
+# Start development server
+npm run dev
+```
+*App location: http://localhost:5173*
+
+---
+
+## Requirements
+- Python 3.10+
+- Node.js (v18+)
+- Ensure 'GMB Calls Analyzer - Call details (sample).csv' is in the root directory.

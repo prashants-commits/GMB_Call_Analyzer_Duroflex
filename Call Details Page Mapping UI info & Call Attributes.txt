@@ -1,0 +1,199 @@
+# Call Details Page – JSON Mapping Spec
+
+## 1. Top Navigation (Header KPIs)
+
+- Call ID → `CleanNumber`
+- Call Objective → `1_Call_Objective_Type`
+- Intent (Purchase) → `5_Purchase_Readiness_Score`
+- Experience → `3a_Customer_Experience_Agent_NPS`
+- Funnel Stage → `4_Funnel_Analysis_Stage`
+- Listen to Call CTA → `Recording URL`
+
+---
+
+## 2. Store & Call Info
+
+- Brand → `Brand`
+- Store Name → `Store Name`
+- Location → `Locality`, `City`, `State`
+- Call Date → `CallDate`
+- Duration → `Duration`
+- Customer Number → `CleanNumber`
+- Call Type → `1_Call_Objective_Type`
+
+---
+
+## 3. Customer Metadata
+
+- Customer Name → `MetaData_Customer_Name`
+- Customer Location → `MetaData_Customer_Location`
+- Language → `MetaData_Customer_Language`
+- Gender → `MetaData_Customer_Gender`
+- Age Group → `MetaData_Customer_Age_Group`
+- Income Group → `MetaData_Customer_Income_Group`
+- Persona → `MetaData_Customer_Persona`
+- Decision Maker → `9_Decision_Maker`
+
+---
+
+## 4. Summary & Signals
+
+- Call Quality → `MetaData_Call_Quality_Overall`
+- Customer Enthusiasm → `MetaData_Customer_Enthusiasm`
+- Converted → `is_Converted`
+- Revenue → `Revenue`
+- Call Summary → `Call_Summary`
+
+---
+
+## 5. Product Intelligence
+
+- Category → `6_Product_Intelligence_Category`
+- Sub Category → `6_Product_Intelligence_Sub_Category`
+- Collection → `6_Product_Intelligence_Collection`
+- Customer Verbatim → `6_Product_Intelligence_Customer_Verbatim_Product`
+- Narrow Down Stage → `6_Product_Intelligence_Narrow_Down_Stage`
+- Size Mentioned → `6_Product_Intelligence_Size_Mentioned`
+
+---
+
+## 6. Customer Needs
+
+- Needs Description → `7_Customer_Needs_Description`
+
+---
+
+## 7. Customer Intent
+
+### Intent to Visit
+- Rating → `2_Intent_to_Visit_Store_Rating`
+- Reason → `2_Intent_to_Visit_Store_Reason`
+
+### Intent to Purchase
+- Rating → `5_Purchase_Readiness_Score`
+- Evidence → `5_Purchase_Readiness_Scoring_Evidence`
+
+---
+
+## 8. Customer Barriers
+
+### Purchase Barrier
+- Type → `8_Visit_Purchase_Barriers_Primary_Purchase_Barrier`
+- Detail → `8_Visit_Purchase_Barriers_Purchase_Barrier_Detail`
+
+### Store Visit Barrier
+- Type → `8_Visit_Purchase_Barriers_Primary_StoreVisit_Barrier`
+- Detail → `8_Visit_Purchase_Barriers_StoreVisit_Barrier_Detail`
+
+---
+
+## 9. Funnel & Timeline
+
+- Funnel Stage → `4_Funnel_Analysis_Stage`
+- Funnel Reason → `4_Funnel_Analysis_Reason`
+- Timeline → `4_Funnel_Analysis_Timeline_to_Purchase`
+- Timeline Reason → `4_Funnel_Analysis_Timeline_to_Purchase_Reason`
+
+---
+
+## 10. Follow-up Priority
+
+- Priority → `5_Purchase_Readiness_Follow_Up_Priority`
+
+---
+
+## 11. Customer Experience
+
+### Agent Experience
+- NPS → `3a_Customer_Experience_Agent_NPS`
+- Reason → `3a_Customer_Experience_Agent_NPS_Reason`
+- Good → `3a_Customer_Experience_Agent_Good`
+- Bad → `3a_Customer_Experience_Agent_Bad`
+
+### Brand Experience
+- NPS → `3b_Customer_Experience_Brand_NPS`
+- Reason → `3b_Customer_Experience_Brand_NPS_Reason`
+- Good → `3b_Customer_Experience_Brand_Good`
+- Bad → `3b_Customer_Experience_Brand_Bad`
+
+---
+
+## 12. Conversion Hooks
+
+- Store Visit → `10_Conversion_Hooks_Used_Store_Footfall_Driver_Used`, `10_Conversion_Hooks_Used_Store_Footfall_Driver_Evidence`
+- WhatsApp → `10_Conversion_Hooks_Used_WhatsApp_Connection_Used`, `10_Conversion_Hooks_Used_WhatsApp_Connection_Evidence`
+- Video Demo → `10_Conversion_Hooks_Used_Video_Demo_Used`, `10_Conversion_Hooks_Used_Video_Demo_Evidence`
+- Measurement → `10_Conversion_Hooks_Used_Mattress_Measurement_Used`, `10_Conversion_Hooks_Used_Mattress_Measurement_Evidence`
+- Offers → `10_Conversion_Hooks_Used_In_Store_Offers_EMI_Used`, `10_Conversion_Hooks_Used_In_Store_Offers_EMI_Evidence`
+
+---
+
+## 13. Probing Quality
+
+- Why Buying → `11_Probing_Questions_Why_Buying_*`
+- Whom For → `11_Probing_Questions_Whom_For_*`
+- Visit Intent → `11_Probing_Questions_Visit_Intent_ETA_*`
+- Current Product → `11_Probing_Questions_Current_Product_*`
+- Budget → `11_Probing_Questions_Budget_Explored_*`
+
+---
+
+## 14. Agent Scorecard
+
+- Agent Nature → `15_Agent_Evaluation_Agent_Nature`, `15_Agent_Evaluation_Agent_Nature_Reason`
+- Footfall Driving → `15_Agent_Evaluation_Footfall_Driving_Skills`, `15_Agent_Evaluation_Footfall_Driving_Skills_Reason`
+- Objection Handling → `15_Agent_Evaluation_Objection_Handling`, `15_Agent_Evaluation_Objection_Handling_Reason`
+- Explanation Quality → `13_Explanation_Quality_Score`, `13_Explanation_Quality_Reason`
+- Product Knowledge → `15_Agent_Evaluation_Product_Knowledge`, `15_Agent_Evaluation_Product_Knowledge_Reason`
+- Agent Learnings → `17_Agent_Learnings`
+
+---
+
+## 15. RELAX Framework
+
+- Reach Out → `16_RELAX_Framework_R_Reach_Out_*`
+- Explore Needs → `16_RELAX_Framework_E_Explore_Needs_*`
+- Link Product → `16_RELAX_Framework_L_Link_Product_*`
+- Add Value → `16_RELAX_Framework_A_Add_Value_*`
+- Express Closing → `16_RELAX_Framework_X_Express_Closing_*`
+
+---
+
+## 16. Next Actions
+
+- Next Actions → `18_Next_Actions`
+
+---
+
+## 17. Airboost Tracking
+
+- Agent Mention → `19_Airboost_Tracking_Agent_Airboost`
+- Customer Mention → `19_Airboost_Tracking_Customer_Airboost`
+- Upsell Possible → `19_Airboost_Tracking_Airboost_Upsell_Possible`
+- Upsell Attempted → `19_Airboost_Tracking_Airboost_Upsell_Attempted`
+
+---
+
+## 18. Transcript
+
+- Transcript → `Transcript_Log`
+
+---
+
+## Important Implementation Notes
+
+- Convert all scores:
+  - `1 → LOW`
+  - `2 → MEDIUM`
+  - `3 → HIGH`
+  - `4/5 → HIGH` (for purchase readiness)
+
+- Derived fields:
+  - Intent Labels → from score buckets
+  - Experience → from NPS
+  - Funnel highlight → from `4_Funnel_Analysis_Stage`
+
+- Location format:Locality + City + State
+
+
+- Duration formatting: seconds → mm:ss

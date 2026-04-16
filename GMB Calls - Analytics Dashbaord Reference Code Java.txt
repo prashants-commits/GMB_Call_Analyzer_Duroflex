@@ -1,0 +1,878 @@
+## 1. Analytics Dashboard View (`GmbAggregatedDashboard.jsx`)
+This is the top-level analytical view for Google My Business (GMB) inbound calls.
+
+```jsx
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Download, Upload, Home, DollarSign, Wrench, ArrowRight } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://duroflex-call-analyser.onrender.com';
+
+// Flatten nested JSON objects into a single-level map suitable for CSV export
+const flattenObject = (obj, prefix = '') => {
+  const result = {};
+  Object.entries(obj || {}).forEach(([key, value]) => {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.assign(result, flattenObject(value, newKey));
+    } else if (Array.isArray(value)) {
+      const normalized = value.map((item) => (item && typeof item === 'object' ? JSON.stringify(item) : item));
+      result[newKey] = normalized.join('; ');
+    } else {
+      result[newKey] = value;
+    }
+  });
+  return result;
+};
+
+const toCsvValue = (value) => {
+  if (value === null || value === undefined) return '';
+  const str = String(value).replace(/"/g, '""');
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str}"`;
+  }
+  return str;
+};
+
+const exportReportsAsCsv = (reports, filename) => {
+  if (!reports || !reports.length) {
+    alert('No reports to download');
+    return;
+  }
+
+  const flattened = reports.map((r) => flattenObject(r));
+  const headers = Array.from(new Set(flattened.flatMap((item) => Object.keys(item))));
+
+  const rows = [headers.join(',')];
+  flattened.forEach((item) => {
+    const row = headers.map((h) => toCsvValue(item[h]));
+    rows.push(row.join(','));
+  });
+
+  const csvContent = rows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+const GmbAggregatedDashboard = () => {
+  const navigate = useNavigate();
+  const [timeRange, setTimeRange] = useState('30');
+  const [selectedRegion, setSelectedRegion] = useState('Overall');
+  const [selectedIntent, setSelectedIntent] = useState('All');
+  const [selectedExperience, setSelectedExperience] = useState('All');
+  const [allCalls, setAllCalls] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const handleDownloadReports = () => {
+    exportReportsAsCsv(allCalls, 'gmb_call_reports.csv');
+  };
+
+  const resetFilters = () => {
+    setTimeRange('30');
+    setSelectedRegion('Overall');
+    setSelectedIntent('All');
+    setSelectedExperience('All');
+  };
+
+  const navigateWithFilter = (predicate, description) => {
+    const ids = filteredCalls.filter(predicate).map((c) => c.id || c.call_id).filter(Boolean);
+    navigate('/Gmb_Inbound', { state: { filterIds: ids, filterDescription: description } });
+  };
+
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/GmbCalls`);
+        if (!res.ok) throw new Error('Failed to load call reports');
+        const json = await res.json();
+        setAllCalls(json.reports || []);
+      } catch (err) {
+        console.error('Error fetching GMB calls:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllData();
+  }, []);
+
+  // Helper functions for new schema
+  const normalizeRating = (rating) => {
+    if (!rating) return 'Medium';
+    const val = rating.toString().toUpperCase();
+    if (val === 'H' || val.includes('HIGH')) return 'High';
+    if (val === 'M' || val.includes('MEDIUM')) return 'Medium';
+    if (val === 'L' || val.includes('LOW')) return 'Low';
+    return 'Medium';
+  };
+
+  const scoreToNumeric = (score) => {
+    // Convert H/M/L to 1-10 scale for display
+    if (!score) return 5;
+    const val = score.toString().toUpperCase();
+    if (val === 'H' || val.includes('HIGH')) return 9;
+    if (val === 'M' || val.includes('MEDIUM')) return 6;
+    if (val === 'L' || val.includes('LOW')) return 3;
+    const num = parseFloat(score);
+    return !isNaN(num) ? num : 5;
+  };
+
+  const determineCallType = (analysis) => {
+    // Check funnel stage for Already Purchased
+    const funnelStage = analysis?.['4_Funnel_Analysis']?.Stage || '';
+    
+    if (funnelStage.toLowerCase().includes('already purchased') || 
+        funnelStage.toLowerCase().includes('purchased')) {
+      return 'Already Purchased';
+    }
+    
+    // Check call objective type
+    const callObjective = analysis?.['1_Call_Objective']?.Type || '';
+    if (callObjective.toLowerCase().includes('service') || 
+        callObjective.toLowerCase().includes('support') ||
+        callObjective.toLowerCase().includes('complaint') ||
+        callObjective.toLowerCase().includes('post purchase') ||
+        callObjective.toLowerCase().includes('post-purchase')) {
+      return 'Already Purchased';
+    }
+    
+    return 'Sales';
+  };
+
+  // Process calls with new schema mapping
+  const processedCalls = useMemo(() => {
+    if (!allCalls.length) return [];
+
+    return allCalls.map((report) => {
+      // Filter out calls with duration < 30 seconds
+      const durationSeconds = report.duration_seconds;
+      if (durationSeconds !== null && durationSeconds !== undefined && durationSeconds < 30) {
+        return null;
+      }
+
+      const analysis = report.analysis || {};
+      const metadata = analysis.MetaData || {};
+      const relax = analysis['11_RELAX_Framework'] || {};
+      const nps = analysis['15_End_to_End_NPS'] || {};
+
+      // Extract RELAX scores (H/M/L format)
+      const rScore = scoreToNumeric(relax.R_Reach_Out?.Score);
+      const eScore = scoreToNumeric(relax.E_Explore_Needs?.Score);
+      const lScore = scoreToNumeric(relax.L_Link_Product?.Score);
+      const aScore = scoreToNumeric(relax.A_Add_Value?.Score);
+      const xScore = scoreToNumeric(relax.X_Express_Closing?.Score);
+
+      // Calculate overall RELAX score
+      const relaxScores = [rScore, eScore, lScore, aScore, xScore];
+      const overallRelax = relaxScores.reduce((a, b) => a + b, 0) / relaxScores.length;
+
+      // NPS Score
+      const npsScore = parseFloat(nps.Score) || 5;
+
+      // Customer Experience from new schema
+      const cxRating = normalizeRating(analysis['3_Customer_Experience']?.Rating);
+      const cxScore = scoreToNumeric(analysis['3_Customer_Experience']?.Rating);
+
+      // Intent to Purchase
+      const intentRating = normalizeRating(analysis['2_Intent_to_Purchase']?.Rating);
+
+      // Determine call type
+      const callType = determineCallType(analysis);
+
+      // Price bucket from Consideration_Value - standardized 4 buckets
+      const considerationValue = metadata.Consideration_Value || '';
+      const valLower = considerationValue.toLowerCase();
+      let priceBucket = '15k to 25k'; // Default mid-low
+      
+      if (valLower.includes('50k') || valLower.includes('premium') || valLower.includes('high') || valLower.includes('king')) {
+        priceBucket = '50k+';
+      } else if (valLower.includes('25k') || valLower.includes('queen')) {
+        priceBucket = '25k to 50k';
+      } else if (valLower.includes('15k') || valLower.includes('double')) {
+        priceBucket = '15k to 25k';
+      } else if (valLower.includes('budget') || valLower.includes('low') || valLower.includes('single')) {
+        priceBucket = 'Below 15k';
+      }
+
+      return {
+        id: report.call_id,
+        store: report.store_name || 'Unknown Store',
+        city: report.city || 'Unknown',
+        region: metadata.Call_Region || report.region || 'Unknown',
+        callType,
+        intent: intentRating,
+        experience: cxRating,
+        priceBucket,
+        scores: {
+          overall: parseFloat(overallRelax.toFixed(1)),
+          nps: npsScore,
+          cx: cxScore,
+          r: rScore,
+          e: eScore,
+          l: lScore,
+          a: aScore,
+          x: xScore,
+        },
+      };
+    }).filter(Boolean);
+  }, [allCalls]);
+
+  // Get unique regions
+  const regions = useMemo(() => {
+    const uniqueRegions = [...new Set(processedCalls.map(call => call.region).filter(Boolean))].filter(r => r !== 'Unknown');
+    return ['Overall', ...uniqueRegions];
+  }, [processedCalls]);
+
+  // Filter calls
+  const filteredCalls = useMemo(() => {
+    let filtered = [...processedCalls];
+    
+    // Time range filter (simplified - using last N records)
+    const days = parseInt(timeRange);
+    if (days && filtered.length > days) {
+      filtered = filtered.slice(-days);
+    }
+    
+    // Region filter
+    if (selectedRegion !== 'Overall') {
+      filtered = filtered.filter((call) => call.region === selectedRegion);
+    }
+
+    // Intent filter (includes "Already Purchased" option)
+    if (selectedIntent !== 'All') {
+      if (selectedIntent === 'Purchased') {
+        filtered = filtered.filter((call) => call.callType === 'Already Purchased');
+      } else {
+        filtered = filtered.filter((call) => call.intent === selectedIntent && call.callType !== 'Already Purchased');
+      }
+    }
+
+    // Experience filter
+    if (selectedExperience !== 'All') {
+      filtered = filtered.filter((call) => call.experience === selectedExperience);
+    }
+    
+    return filtered;
+  }, [processedCalls, timeRange, selectedRegion, selectedIntent, selectedExperience]);
+
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const total = filteredCalls.length;
+    const salesCalls = filteredCalls.filter((c) => c.callType === 'Sales').length;
+    const alreadyPurchasedCalls = filteredCalls.filter((c) => c.callType === 'Already Purchased').length;
+
+    // Intent x Experience Matrix (for Sales calls only)
+    const matrix = {};
+    ['High', 'Medium', 'Low'].forEach((intent) => {
+      matrix[intent] = {};
+      ['High', 'Medium', 'Low'].forEach((exp) => {
+        matrix[intent][exp] = filteredCalls.filter(
+          (c) => c.intent === intent && c.experience === exp && c.callType === 'Sales'
+        ).length;
+      });
+    });
+
+    // Already Purchased x Experience Matrix
+    matrix['Already Purchased'] = {};
+    ['High', 'Medium', 'Low'].forEach((exp) => {
+      matrix['Already Purchased'][exp] = filteredCalls.filter(
+        (c) => c.callType === 'Already Purchased' && c.experience === exp
+      ).length;
+    });
+
+    // Store Performance
+    const storeMetrics = {};
+    filteredCalls.forEach((call) => {
+      if (!storeMetrics[call.store]) {
+        storeMetrics[call.store] = {
+          storeName: call.store,
+          city: call.city,
+          region: call.region,
+          calls: [],
+        };
+      }
+      storeMetrics[call.store].calls.push(call);
+    });
+
+    const storePerformance = Object.values(storeMetrics)
+      .map((store) => {
+        const calls = store.calls;
+        const avgScore = (metric) =>
+          calls.length ? parseFloat((calls.reduce((sum, c) => sum + c.scores[metric], 0) / calls.length).toFixed(1)) : 0;
+
+        return {
+          storeName: store.storeName,
+          city: store.city,
+          region: store.region,
+          totalCalls: calls.length,
+          overall: avgScore('overall'),
+          nps: avgScore('nps'),
+          cx: avgScore('cx'),
+          r: avgScore('r'),
+          e: avgScore('e'),
+          l: avgScore('l'),
+          a: avgScore('a'),
+          x: avgScore('x'),
+        };
+      })
+      .sort((a, b) => b.overall - a.overall);
+
+    // Price Bucket Performance - 4 standardized buckets
+    const priceBuckets = {};
+    ['50k+', '25k to 50k', '15k to 25k', 'Below 15k'].forEach((bucket) => {
+      const bucketCalls = filteredCalls.filter((c) => c.priceBucket === bucket);
+      if (bucketCalls.length > 0) {
+        const avgScore = (metric) =>
+          parseFloat((bucketCalls.reduce((sum, c) => sum + c.scores[metric], 0) / bucketCalls.length).toFixed(1));
+        priceBuckets[bucket] = {
+          totalCalls: bucketCalls.length,
+          overall: avgScore('overall'),
+          nps: avgScore('nps'),
+          cx: avgScore('cx'),
+          r: avgScore('r'),
+          e: avgScore('e'),
+          l: avgScore('l'),
+          a: avgScore('a'),
+          x: avgScore('x'),
+        };
+      } else {
+        priceBuckets[bucket] = {
+          totalCalls: 0,
+          overall: 0,
+          nps: 0,
+          cx: 0,
+          r: 0,
+          e: 0,
+          l: 0,
+          a: 0,
+          x: 0,
+        };
+      }
+    });
+
+    return {
+      total,
+      salesCalls,
+      alreadyPurchasedCalls,
+      matrix,
+      storePerformance,
+      priceBuckets,
+    };
+  }, [filteredCalls]);
+
+  // Score pill styling
+  const getScorePillClass = (score) => {
+    if (score >= 7) return 'bg-green-100 text-green-700 border-green-300';
+    if (score >= 5) return 'bg-yellow-100 text-yellow-700 border-yellow-400';
+    return 'bg-red-100 text-red-700 border-red-300';
+  };
+
+  // Matrix cell colors (matching reference)
+  const matrixColors = {
+    High: {
+      High: 'bg-[#3b8766]',      // Teal dark
+      Medium: 'bg-[#5ab589]',   // Teal light
+      Low: 'bg-[#b9362a]',      // Red dark
+    },
+    Medium: {
+      High: 'bg-[#8cc63f]',     // Lime
+      Medium: 'bg-[#dcb336]',   // Mustard
+      Low: 'bg-[#d97029]',      // Orange
+    },
+    Low: {
+      High: 'bg-[#dcb336]',     // Gold
+      Medium: 'bg-[#9e682e]',   // Brown
+      Low: 'bg-[#852b26]',      // Maroon
+    },
+    'Already Purchased': {
+      High: 'bg-[#6366f1]',     // Purple
+      Medium: 'bg-[#4f46e5]',   // Indigo
+      Low: 'bg-[#4338ca]',      // Deep indigo
+    },
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-gray-600">Loading call analytics...</div>
+      </div>
+    );
+  }
+
+  if (!processedCalls.length) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">No call data available for aggregated view.</p>
+          <Link to="/Gmb_Inbound" className="text-blue-600 hover:text-blue-700 font-semibold">
+            ← Back to Call Reports
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="max-w-[1600px] mx-auto px-8 py-8">
+        
+        {/* HEADER & FILTERS */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <div>
+              <Link 
+                to="/Gmb_Inbound" 
+                className="text-xs font-bold text-gray-500 hover:text-gray-900 transition tracking-wide mb-1 inline-flex items-center gap-1"
+              >
+                GO TO ANALYSED CALLS
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+              <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: "'Fraunces', serif" }}>
+                Analytics Dashboard
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">Real-time intelligence across all sales channels</p>
+            </div>
+            <div className="flex gap-3 mt-4 md:mt-0">
+              <button
+                onClick={handleDownloadReports}
+                className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Report
+              </button>
+              <Link
+                to="/Gmb_Inbound/upload"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow-sm flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Upload CSV
+              </Link>
+            </div>
+          </div>
+
+          {/* FILTER STRIP */}
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Filters:</span>
+            </div>
+            
+            {/* Region */}
+            <select
+              value={selectedRegion}
+              onChange={(e) => setSelectedRegion(e.target.value)}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+              }}
+            >
+              {regions.map((region) => (
+                <option key={region} value={region}>Region: {region}</option>
+              ))}
+            </select>
+
+            {/* Intent */}
+            <select
+              value={selectedIntent}
+              onChange={(e) => setSelectedIntent(e.target.value)}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+              }}
+            >
+              <option value="All">Intent: All</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+              <option value="Purchased">Already Purchased</option>
+            </select>
+
+            {/* Customer Experience */}
+            <select
+              value={selectedExperience}
+              onChange={(e) => setSelectedExperience(e.target.value)}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+              }}
+            >
+              <option value="All">Experience: All</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+
+            {/* Time */}
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="bg-white border border-gray-300 text-gray-700 text-sm font-semibold px-4 py-2 pr-8 rounded-lg appearance-none cursor-pointer shadow-sm hover:border-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              style={{
+                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+              }}
+            >
+              <option value="7">Time: Last 7 Days</option>
+              <option value="30">Time: Last 30 Days</option>
+              <option value="90">Time: Last 3 Months</option>
+              <option value="all">All Time</option>
+            </select>
+
+            {/* Reset */}
+            <button
+              onClick={resetFilters}
+              className="text-sm text-red-500 hover:text-red-700 font-semibold ml-auto"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        {/* KPI CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          {/* Total Calls */}
+          <div
+            onClick={() => navigateWithFilter(() => true, 'All calls')}
+            className="bg-white border border-gray-200 rounded-xl p-6 border-l-4 border-l-indigo-500 shadow-sm hover:shadow-md transition cursor-pointer"
+          >
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Total Calls</p>
+              <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                +{Math.round((metrics.total / Math.max(1, processedCalls.length)) * 100)}%
+              </span>
+            </div>
+            <h3 className="text-4xl font-bold text-gray-900 mb-1">{metrics.total}</h3>
+            <p className="text-xs text-gray-400">
+              Avg {metrics.storePerformance.length ? (metrics.total / metrics.storePerformance.length).toFixed(1) : 0} per store
+            </p>
+          </div>
+
+          {/* Sales Leads */}
+          <div
+            onClick={() => navigateWithFilter((c) => c.callType === 'Sales', 'Sales calls')}
+            className="bg-white border border-gray-200 rounded-xl p-6 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition cursor-pointer"
+          >
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-sm font-bold text-emerald-700 uppercase tracking-wide">Sales Leads</p>
+              <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <h3 className="text-4xl font-bold text-emerald-600">{metrics.salesCalls}</h3>
+            <p className="text-xs text-gray-400">
+              {metrics.total ? Math.round((metrics.salesCalls / metrics.total) * 100) : 0}% of Total Volume
+            </p>
+          </div>
+
+          {/* Already Purchased */}
+          <div
+            onClick={() => navigateWithFilter((c) => c.callType === 'Already Purchased', 'Already Purchased calls')}
+            className="bg-white border border-gray-200 rounded-xl p-6 border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition cursor-pointer"
+          >
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-sm font-bold text-blue-700 uppercase tracking-wide">Already Purchased</p>
+              <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+                <Wrench className="w-4 h-4" />
+              </div>
+            </div>
+            <h3 className="text-4xl font-bold text-blue-600">{metrics.alreadyPurchasedCalls}</h3>
+            <p className="text-xs text-gray-400">
+              {metrics.total ? Math.round((metrics.alreadyPurchasedCalls / metrics.total) * 100) : 0}% of Total Volume
+            </p>
+          </div>
+        </div>
+
+        {/* MATRIX SECTION */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: "'Fraunces', serif" }}>
+              Purchase Intent × Experience Matrix
+            </h2>
+            <div className="h-px bg-gray-300 flex-1 ml-4"></div>
+          </div>
+
+          <div className="overflow-x-auto pb-4">
+            <div className="min-w-[1000px] grid grid-cols-[180px_repeat(3,minmax(0,1fr))] gap-4">
+              {/* Headers */}
+              <div></div>
+              <div className="text-center font-bold text-gray-500 text-base uppercase tracking-wide pb-2">High Experience</div>
+              <div className="text-center font-bold text-gray-500 text-base uppercase tracking-wide pb-2">Medium Experience</div>
+              <div className="text-center font-bold text-gray-500 text-base uppercase tracking-wide pb-2">Low Experience</div>
+
+              {/* Row 1: High Intent */}
+              <div className="flex items-center justify-end pr-6 font-bold text-gray-800 text-base">High Intent</div>
+              {['High', 'Medium', 'Low'].map((exp) => (
+                <button
+                  key={`high-${exp}`}
+                  onClick={() => navigateWithFilter((c) => c.intent === 'High' && c.experience === exp && c.callType === 'Sales', `High intent × ${exp} experience`)}
+                  className={`${matrixColors.High[exp]} rounded-2xl p-6 text-center text-white cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg min-h-[140px] flex flex-col items-center justify-center`}
+                >
+                  <div className="text-5xl font-bold mb-1">{metrics.matrix.High[exp]}</div>
+                  <div className="text-sm uppercase tracking-wide opacity-90 font-semibold">Calls</div>
+                </button>
+              ))}
+
+              {/* Row 2: Medium Intent */}
+              <div className="flex items-center justify-end pr-6 font-bold text-gray-800 text-base">Medium Intent</div>
+              {['High', 'Medium', 'Low'].map((exp) => (
+                <button
+                  key={`medium-${exp}`}
+                  onClick={() => navigateWithFilter((c) => c.intent === 'Medium' && c.experience === exp && c.callType === 'Sales', `Medium intent × ${exp} experience`)}
+                  className={`${matrixColors.Medium[exp]} rounded-2xl p-6 text-center text-white cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg min-h-[140px] flex flex-col items-center justify-center`}
+                >
+                  <div className="text-5xl font-bold mb-1">{metrics.matrix.Medium[exp]}</div>
+                  <div className="text-sm uppercase tracking-wide opacity-90 font-semibold">Calls</div>
+                </button>
+              ))}
+
+              {/* Row 3: Low Intent */}
+              <div className="flex items-center justify-end pr-6 font-bold text-gray-800 text-base">Low Intent</div>
+              {['High', 'Medium', 'Low'].map((exp) => (
+                <button
+                  key={`low-${exp}`}
+                  onClick={() => navigateWithFilter((c) => c.intent === 'Low' && c.experience === exp && c.callType === 'Sales', `Low intent × ${exp} experience`)}
+                  className={`${matrixColors.Low[exp]} rounded-2xl p-6 text-center text-white cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg min-h-[140px] flex flex-col items-center justify-center`}
+                >
+                  <div className="text-5xl font-bold mb-1">{metrics.matrix.Low[exp]}</div>
+                  <div className="text-sm uppercase tracking-wide opacity-90 font-semibold">Calls</div>
+                </button>
+              ))}
+
+              {/* Row 4: Already Purchased */}
+              <div className="flex items-center justify-end pr-6 font-bold text-gray-800 text-base">Already Purchased</div>
+              {['High', 'Medium', 'Low'].map((exp) => (
+                <button
+                  key={`purchased-${exp}`}
+                  onClick={() => navigateWithFilter((c) => c.callType === 'Already Purchased' && c.experience === exp, `Already Purchased × ${exp} experience`)}
+                  className={`${matrixColors['Already Purchased'][exp]} rounded-2xl p-6 text-center text-white cursor-pointer transition-all hover:-translate-y-1 hover:shadow-lg min-h-[140px] flex flex-col items-center justify-center`}
+                >
+                  <div className="text-5xl font-bold mb-1">{metrics.matrix['Already Purchased'][exp]}</div>
+                  <div className="text-sm uppercase tracking-wide opacity-90 font-semibold">Calls</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* STORE PERFORMANCE TABLE */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-8">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <Home className="w-6 h-6 text-amber-500" />
+              <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Fraunces', serif" }}>
+                Store Performance Matrix
+              </h2>
+            </div>
+            <p className="text-sm text-gray-500 mt-1 ml-9">Comprehensive Performance Metrics by Store (Weighted Score)</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-4 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">Store Name</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-100 border-l border-r border-gray-200">Overall Score</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider"># Calls</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">NPS</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">CX Score</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-amber-600 uppercase tracking-wider border-l border-gray-200">R</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">E</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">L</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">A</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-amber-600 uppercase tracking-wider">X</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {metrics.storePerformance.sort((a, b) => b.totalCalls - a.totalCalls).map((store) => (
+                  <tr
+                    key={store.storeName}
+                    onClick={() => navigateWithFilter((c) => c.store === store.storeName, `${store.storeName} calls`)}
+                    className="hover:bg-gray-50 transition cursor-pointer"
+                  >
+                    <td className="p-4">
+                      <div className="font-bold text-gray-900">{store.storeName}</div>
+                      <div className="text-xs text-gray-500">{store.city}</div>
+                    </td>
+                    <td className="p-4 text-center bg-gray-50 border-l border-r border-gray-100">
+                      <span className={`inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-base border ${getScorePillClass(store.overall)}`}>
+                        {store.overall}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">{store.totalCalls}</span>
+                    </td>
+                    <td className="p-4 text-center text-gray-900 font-bold">{store.nps}</td>
+                    <td className="p-4 text-center text-gray-900">{store.cx}</td>
+                    <td className="p-4 text-center border-l border-gray-100 text-gray-600">{store.r}</td>
+                    <td className="p-4 text-center text-gray-600">{store.e}</td>
+                    <td className="p-4 text-center text-gray-600">{store.l}</td>
+                    <td className="p-4 text-center text-gray-600">{store.a}</td>
+                    <td className="p-4 text-center text-gray-600">{store.x}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* PRICE BUCKET TABLE */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <DollarSign className="w-6 h-6 text-green-600" />
+              <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Fraunces', serif" }}>
+                Price Bucket Performance
+              </h2>
+            </div>
+            <p className="text-sm text-gray-500 mt-1 ml-9">Correlation between Product Value and Sales Experience</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-4 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">Price Segment</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-100 border-l border-r border-gray-200">Overall Score</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider"># Calls</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">NPS</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">CX Score</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-l border-gray-200">R</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">E</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">L</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">A</th>
+                  <th className="p-4 border-b border-gray-200 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">X</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {/* 50k+ */}
+                <tr 
+                  onClick={() => navigateWithFilter((c) => c.priceBucket === '50k+', '50k+ price bucket calls')}
+                  className="hover:bg-gray-50 transition cursor-pointer"
+                >
+                  <td className="p-4">
+                    <div className="font-bold text-gray-900">50k+</div>
+                    <div className="text-xs text-green-600 font-bold">High Focus</div>
+                  </td>
+                  <td className="p-4 text-center bg-gray-50 border-l border-r border-gray-100">
+                    <span className={`inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-base border ${getScorePillClass(metrics.priceBuckets['50k+'].overall)}`}>
+                      {metrics.priceBuckets['50k+'].overall}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">{metrics.priceBuckets['50k+'].totalCalls}</span>
+                  </td>
+                  <td className="p-4 text-center text-gray-900 font-bold">{metrics.priceBuckets['50k+'].nps}</td>
+                  <td className="p-4 text-center text-gray-900">{metrics.priceBuckets['50k+'].cx}</td>
+                  <td className="p-4 text-center border-l border-gray-100 text-gray-600">{metrics.priceBuckets['50k+'].r}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['50k+'].e}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['50k+'].l}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['50k+'].a}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['50k+'].x}</td>
+                </tr>
+
+                {/* 25k to 50k */}
+                <tr 
+                  onClick={() => navigateWithFilter((c) => c.priceBucket === '25k to 50k', '25k to 50k price bucket calls')}
+                  className="hover:bg-gray-50 transition cursor-pointer"
+                >
+                  <td className="p-4">
+                    <div className="font-bold text-gray-900">25k to 50k</div>
+                  </td>
+                  <td className="p-4 text-center bg-gray-50 border-l border-r border-gray-100">
+                    <span className={`inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-base border ${getScorePillClass(metrics.priceBuckets['25k to 50k'].overall)}`}>
+                      {metrics.priceBuckets['25k to 50k'].overall}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">{metrics.priceBuckets['25k to 50k'].totalCalls}</span>
+                  </td>
+                  <td className="p-4 text-center text-gray-900 font-bold">{metrics.priceBuckets['25k to 50k'].nps}</td>
+                  <td className="p-4 text-center text-gray-900">{metrics.priceBuckets['25k to 50k'].cx}</td>
+                  <td className="p-4 text-center border-l border-gray-100 text-gray-600">{metrics.priceBuckets['25k to 50k'].r}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['25k to 50k'].e}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['25k to 50k'].l}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['25k to 50k'].a}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['25k to 50k'].x}</td>
+                </tr>
+
+                {/* 15k to 25k */}
+                <tr 
+                  onClick={() => navigateWithFilter((c) => c.priceBucket === '15k to 25k', '15k to 25k price bucket calls')}
+                  className="hover:bg-gray-50 transition cursor-pointer"
+                >
+                  <td className="p-4">
+                    <div className="font-bold text-gray-900">15k to 25k</div>
+                  </td>
+                  <td className="p-4 text-center bg-gray-50 border-l border-r border-gray-100">
+                    <span className={`inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-base border ${getScorePillClass(metrics.priceBuckets['15k to 25k'].overall)}`}>
+                      {metrics.priceBuckets['15k to 25k'].overall}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">{metrics.priceBuckets['15k to 25k'].totalCalls}</span>
+                  </td>
+                  <td className="p-4 text-center text-gray-900 font-bold">{metrics.priceBuckets['15k to 25k'].nps}</td>
+                  <td className="p-4 text-center text-gray-900">{metrics.priceBuckets['15k to 25k'].cx}</td>
+                  <td className="p-4 text-center border-l border-gray-100 text-gray-600">{metrics.priceBuckets['15k to 25k'].r}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['15k to 25k'].e}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['15k to 25k'].l}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['15k to 25k'].a}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['15k to 25k'].x}</td>
+                </tr>
+
+                {/* Below 15k */}
+                <tr 
+                  onClick={() => navigateWithFilter((c) => c.priceBucket === 'Below 15k', 'Below 15k price bucket calls')}
+                  className="hover:bg-gray-50 transition cursor-pointer"
+                >
+                  <td className="p-4">
+                    <div className="font-bold text-gray-900">Below 15k</div>
+                  </td>
+                  <td className="p-4 text-center bg-gray-50 border-l border-r border-gray-100">
+                    <span className={`inline-flex items-center justify-center w-12 h-7 rounded-lg font-bold text-base border ${getScorePillClass(metrics.priceBuckets['Below 15k'].overall)}`}>
+                      {metrics.priceBuckets['Below 15k'].overall}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-bold">{metrics.priceBuckets['Below 15k'].totalCalls}</span>
+                  </td>
+                  <td className="p-4 text-center text-gray-900 font-bold">{metrics.priceBuckets['Below 15k'].nps}</td>
+                  <td className="p-4 text-center text-gray-900">{metrics.priceBuckets['Below 15k'].cx}</td>
+                  <td className="p-4 text-center border-l border-gray-100 text-gray-600">{metrics.priceBuckets['Below 15k'].r}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['Below 15k'].e}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['Below 15k'].l}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['Below 15k'].a}</td>
+                  <td className="p-4 text-center text-gray-600">{metrics.priceBuckets['Below 15k'].x}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-gray-400 text-sm mt-8 pb-8">
+          Duroflex Analytics • Powered by AI Analysis
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default GmbAggregatedDashboard;
+```
