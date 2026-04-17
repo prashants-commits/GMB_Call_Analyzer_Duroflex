@@ -25,6 +25,19 @@ def score_to_label(val: Any) -> str:
     return "LOW"
 
 
+def purchase_score_to_label(val: Any) -> str:
+    """Convert purchase score (1-5) to HIGH/MEDIUM/LOW."""
+    try:
+        n = int(val)
+    except (ValueError, TypeError):
+        return str(val) if val else "N/A"
+    if n == 5:
+        return "HIGH"
+    if n in (3, 4):
+        return "MEDIUM"
+    return "LOW"
+
+
 def nps_to_label(val: Any) -> str:
     """Convert NPS (1-10) to HIGH/MEDIUM/LOW."""
     try:
@@ -128,7 +141,7 @@ def _build_call_detail(row: Dict[str, str]) -> Dict[str, Any]:
             "visit_rating": score_to_label(row.get("2_Intent_to_Visit_Store_Rating")),
             "visit_rating_raw": safe_int(row.get("2_Intent_to_Visit_Store_Rating")),
             "visit_reason": safe_str(row.get("2_Intent_to_Visit_Store_Reason")),
-            "purchase_score": score_to_label(row.get("5_Purchase_Readiness_Score")),
+            "purchase_score": purchase_score_to_label(row.get("5_Purchase_Readiness_Score")),
             "purchase_score_raw": safe_int(row.get("5_Purchase_Readiness_Score")),
             "purchase_evidence": safe_str(row.get("5_Purchase_Readiness_Scoring_Evidence")),
         },
@@ -333,7 +346,7 @@ def _build_call_summary(row: Dict[str, str]) -> Dict[str, Any]:
         "city": safe_str(row.get("City")),
         "state": safe_str(row.get("State")),
         "call_objective": safe_str(row.get("1_Call_Objective_Type")),
-        "intent_rating": score_to_label(row.get("5_Purchase_Readiness_Score")),
+        "intent_rating": purchase_score_to_label(row.get("5_Purchase_Readiness_Score")),
         "intent_raw": safe_int(row.get("5_Purchase_Readiness_Score")),
         "experience_rating": nps_to_label(row.get("3a_Customer_Experience_Agent_NPS")),
         "experience_nps": safe_int(row.get("3a_Customer_Experience_Agent_NPS")),
@@ -358,7 +371,7 @@ def _build_analytics_summary(row: Dict[str, str]) -> Dict[str, Any]:
         "call_objective": safe_str(row.get("1_Call_Objective_Type")),
         
         # Intent & Experience
-        "intent_rating": score_to_label(row.get("5_Purchase_Readiness_Score")),
+        "intent_rating": purchase_score_to_label(row.get("5_Purchase_Readiness_Score")),
         "intent_raw": safe_int(row.get("5_Purchase_Readiness_Score")),
         "visit_rating": score_to_label(row.get("2_Intent_to_Visit_Store_Rating")),
         "visit_raw": safe_int(row.get("2_Intent_to_Visit_Store_Rating")),

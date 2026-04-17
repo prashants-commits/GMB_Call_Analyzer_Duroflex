@@ -7,7 +7,10 @@ const STATIC_USERS = [
   { email: 'anup@duroflexworld.com', password: 'duroflex123' },
   { email: 'mitesh@duroflexworld.com', password: 'duroflex123' },
   { email: 'mukul@duroflexworld.com', password: 'duroflex123' },
-  { email: 'admin@duroflexworld.com', password: 'duroflex123' }
+  { email: 'admin@duroflexworld.com', password: 'duroflex123' },
+  { email: 'leadership@duroflex.com', password: 'duroflex123' },
+  { email: 'admin@duroflex.com', password: 'duroflex123' },
+  { email: 'admin', password: 'admin' }
 ];
 
 export default function LoginPage() {
@@ -103,7 +106,7 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label htmlFor="password" class="block text-sm font-semibold text-gray-800">Password</label>
+                <label htmlFor="password" className="block text-sm font-semibold text-gray-800">Password</label>
               </div>
               <input 
                 id="password" 
