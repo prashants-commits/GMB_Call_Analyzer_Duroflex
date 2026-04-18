@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate } from '../utils/api';
+import { Users, Target, DollarSign, Activity } from 'lucide-react';
 import ScoreBadge from '../components/ScoreBadge';
 
 export default function CallListPage() {
@@ -12,10 +13,14 @@ export default function CallListPage() {
 
   // Filter state
   const [search, setSearch] = useState('');
-  const [storeFilter, setStoreFilter] = useState('All');
-  const [intentFilter, setIntentFilter] = useState('All');
-  const [expFilter, setExpFilter] = useState('All');
-  const [funnelFilter, setFunnelFilter] = useState('All');
+  const [storeFilter, setStoreFilter] = useState([]);
+  const [intentFilter, setIntentFilter] = useState([]);
+  const [expFilter, setExpFilter] = useState([]);
+  const [funnelFilter, setFunnelFilter] = useState([]);
+  const [cityFilter, setCityFilter] = useState([]);
+  const [priceFilter, setPriceFilter] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState([]);
+  const [barrierFilter, setBarrierFilter] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -33,6 +38,10 @@ export default function CallListPage() {
         if (location.state.intentFilter) setIntentFilter(location.state.intentFilter);
         if (location.state.expFilter) setExpFilter(location.state.expFilter);
         if (location.state.storeFilter) setStoreFilter(location.state.storeFilter);
+        if (location.state.cityFilter) setCityFilter(location.state.cityFilter);
+        if (location.state.priceFilter) setPriceFilter(location.state.priceFilter);
+        if (location.state.categoryFilter) setCategoryFilter(location.state.categoryFilter);
+        if (location.state.barrierFilter) setBarrierFilter(location.state.barrierFilter);
         if (location.state.startDate) setStartDate(location.state.startDate);
         if (location.state.endDate) setEndDate(location.state.endDate);
     }
@@ -50,10 +59,14 @@ export default function CallListPage() {
         c.city?.toLowerCase().includes(q)
       );
     }
-    if (storeFilter !== 'All') result = result.filter(c => c.store_name === storeFilter);
-    if (intentFilter !== 'All') result = result.filter(c => c.intent_rating === intentFilter);
-    if (expFilter !== 'All') result = result.filter(c => c.experience_rating === expFilter);
-    if (funnelFilter !== 'All') result = result.filter(c => c.funnel_stage === funnelFilter);
+    if (storeFilter.length > 0) result = result.filter(c => storeFilter.includes(c.store_name));
+    if (intentFilter.length > 0) result = result.filter(c => intentFilter.includes(c.intent_rating));
+    if (expFilter.length > 0) result = result.filter(c => expFilter.includes(c.experience_rating));
+    if (funnelFilter.length > 0) result = result.filter(c => funnelFilter.includes(c.funnel_stage));
+    if (cityFilter.length > 0) result = result.filter(c => cityFilter.includes(c.city));
+    if (priceFilter.length > 0) result = result.filter(c => priceFilter.includes(c.price_bucket));
+    if (categoryFilter.length > 0) result = result.filter(c => categoryFilter.includes(c.product_category));
+    if (barrierFilter.length > 0) result = result.filter(c => barrierFilter.includes(c.purchase_barrier));
 
     if (startDate || endDate) {
         result = result.filter(c => {
@@ -79,20 +92,45 @@ export default function CallListPage() {
     }
 
     return result;
-  }, [data.calls, search, storeFilter, intentFilter, expFilter, funnelFilter, startDate, endDate]);
+  }, [data.calls, search, storeFilter, intentFilter, expFilter, funnelFilter, cityFilter, priceFilter, categoryFilter, barrierFilter, startDate, endDate]);
 
   // KPIs
   const kpis = useMemo(() => {
     const total = filteredCalls.length;
-    const highIntent = filteredCalls.filter(c => c.intent_rating === 'HIGH').length;
-    const salesLeads = filteredCalls.filter(c => (c.call_objective || '').toLowerCase().includes('sales')).length;
-    const converted = filteredCalls.filter(c => c.is_converted === '1' || c.is_converted === 1).length;
+    
+    let convertedCount = 0;
+    let totalRevenue = 0;
+
+    filteredCalls.forEach(r => {
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            convertedCount++;
+        }
+        
+        let rev = 0;
+        if (r.revenue) {
+            rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        }
+        totalRevenue += rev;
+    });
+
+    const conversionPercent = total > 0 ? ((convertedCount / total) * 100).toFixed(1) : "0.0";
+    const revPerLead = total > 0 ? (totalRevenue / total) : 0;
+    const arpu = convertedCount > 0 ? (totalRevenue / convertedCount) : 0;
+
+    const formatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+    const totalRevenueFormatted = formatter.format(totalRevenue);
+    const revPerLeadFormatted = formatter.format(revPerLead);
+    const arpuFormatted = formatter.format(arpu);
+
     return { 
         total, 
-        highIntentPct: total > 0 ? Math.round((highIntent / total) * 100) : 0, 
-        salesLeads, 
-        converted,
-        conversionRate: total > 0 ? ((converted / total) * 100).toFixed(1) : '0'
+        salesLeads: total, 
+        convertedCount,
+        totalRevenue,
+        conversionPercent,
+        totalRevenueFormatted,
+        revPerLeadFormatted,
+        arpuFormatted 
     };
   }, [filteredCalls]);
 
@@ -102,8 +140,14 @@ export default function CallListPage() {
     return ['All', ...stages.sort()];
   }, [data.calls]);
 
+  const citiesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.city).filter(Boolean).sort())], [data.calls]);
+  const pricesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.price_bucket).filter(Boolean).sort())], [data.calls]);
+  const categoriesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.product_category).filter(Boolean).sort())], [data.calls]);
+  const barriersList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.purchase_barrier).filter(Boolean).sort())], [data.calls]);
+
   const resetFilters = () => {
-    setSearch(''); setStoreFilter('All'); setIntentFilter('All'); setExpFilter('All'); setFunnelFilter('All');
+    setSearch(''); setStoreFilter([]); setIntentFilter([]); setExpFilter([]); setFunnelFilter([]);
+    setCityFilter([]); setPriceFilter([]); setCategoryFilter([]); setBarrierFilter([]);
     setStartDate(''); setEndDate('');
   };
 
@@ -155,11 +199,42 @@ export default function CallListPage() {
         </div>
 
         {/* KPI Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <KpiCard label="Total Reports" value={kpis.total} color="blue" icon="📊" />
-          <KpiCard label="High Intent" value={`${kpis.highIntentPct}%`} color="emerald" icon="🔥" />
-          <KpiCard label="Sales Lead %" value={`${Math.round((kpis.salesLeads / (kpis.total || 1)) * 100)}%`} color="indigo" icon="🎯" />
-          <KpiCard label="Conversion Rate" value={`${kpis.conversionRate}%`} color="amber" icon="💰" />
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-10">
+            <KpiCard 
+              label="Total Sales Calls" 
+              value={kpis.salesLeads} 
+              subtitle="All Calls that specifically had Sales Intent, excluding all Post Purchase Calls" 
+              color="indigo" 
+              icon={<Users />} 
+            />
+            <KpiCard 
+              label="Revenue per Lead" 
+              value={kpis.revPerLeadFormatted} 
+              subtitle="Total Revenue received against all Sales leads" 
+              color="emerald" 
+              icon={<DollarSign />} 
+            />
+            <KpiCard 
+              label="Conversion %" 
+              value={`${kpis.conversionPercent}%`} 
+              subtitle="What % of Sales Leads placed Ordered" 
+              color="emerald" 
+              icon={<Target />} 
+            />
+            <KpiCard 
+              label="Total Revenue" 
+              value={kpis.totalRevenueFormatted} 
+              subtitle="What is the total Received Revenue against all Sales leads" 
+              color="indigo" 
+              icon={<DollarSign />} 
+            />
+            <KpiCard 
+              label="ARPU" 
+              value={kpis.arpuFormatted} 
+              subtitle="Avg Revenue per Converted lead" 
+              color="emerald" 
+              icon={<Activity />} 
+            />
         </div>
 
         {/* Filter Strip */}
@@ -188,6 +263,18 @@ export default function CallListPage() {
 
               <FilterSelect value={funnelFilter} onChange={setFunnelFilter}
                 options={funnelStages} prefix="Funnel" />
+
+              <FilterSelect value={cityFilter} onChange={setCityFilter}
+                options={citiesList} prefix="City" />
+
+              <FilterSelect value={priceFilter} onChange={setPriceFilter}
+                options={pricesList} prefix="Price" />
+
+              <FilterSelect value={categoryFilter} onChange={setCategoryFilter}
+                options={categoriesList} prefix="Category" />
+
+              <FilterSelect value={barrierFilter} onChange={setBarrierFilter}
+                options={barriersList} prefix="Barrier" />
 
               <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-2xl border border-gray-100 shadow-inner">
                   <div className="flex flex-col">
@@ -350,48 +437,93 @@ export default function CallListPage() {
 
 /* ── Sub-components ── */
 
-function KpiCard({ label, value, color, icon }) {
-  const bgMap = { 
-      blue: 'bg-blue-50/50 text-blue-600 border-blue-100', 
-      emerald: 'bg-emerald-50/50 text-emerald-600 border-emerald-100', 
-      indigo: 'bg-indigo-50/50 text-indigo-600 border-indigo-100', 
-      amber: 'bg-amber-50/50 text-amber-600 border-amber-100' 
-  };
-  const iconBgMap = {
-      blue: 'bg-blue-600',
-      emerald: 'bg-emerald-600',
-      indigo: 'bg-indigo-600',
-      amber: 'bg-amber-600'
-  };
-  return (
-    <div className={`bg-white p-6 rounded-[2rem] border-2 shadow-sm transition-all hover:translate-y-[-4px] hover:shadow-xl hover:shadow-${color}-100 flex flex-col gap-4 ${bgMap[color] || 'border-gray-100'}`}>
-      <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{label}</span>
-          <span className="text-xl">{icon}</span>
-      </div>
-      <p className="text-3xl font-bold text-gray-900 heading-font">{value}</p>
-      <div className="h-1.5 w-12 bg-gray-100 rounded-full overflow-hidden">
-          <div className={`h-full ${iconBgMap[color] || 'bg-gray-400'} rounded-full`} style={{ width: '65%' }}></div>
-      </div>
-    </div>
-  );
+function KpiCard({ label, value, subtitle, color, icon }) {
+    const colors = {
+        indigo: 'text-indigo-600 bg-indigo-50 border-indigo-100 shadow-indigo-200/20',
+        emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100 shadow-emerald-200/20',
+        rose: 'text-rose-600 bg-rose-50 border-rose-100 shadow-rose-200/20'
+    };
+    const progressColors = {
+        indigo: 'bg-indigo-600',
+        emerald: 'bg-emerald-600',
+        rose: 'bg-rose-600'
+    };
+    
+    return (
+        <div className={`bg-white p-8 rounded-[2.5rem] border border-gray-200 shadow-xl shadow-gray-200/40 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group`}>
+            {/* Background Glow */}
+            <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full opacity-10 blur-2xl ${progressColors[color]}`}></div>
+            
+            <div className="flex justify-between items-start mb-6">
+                <div className={`p-4 rounded-2xl ${colors[color]} border shadow-lg`}>
+                    {React.cloneElement(icon, { size: 24 })}
+                </div>
+            </div>
+            
+            <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</span>
+                <span className="text-4xl font-black text-gray-900 tracking-tighter" style={{ fontFamily: "'Fraunces', serif" }}>
+                    {value}
+                </span>
+                <span className="text-[11px] text-gray-400 font-medium leading-snug mt-1">{subtitle}</span>
+            </div>
+            
+            <div className="mt-6 h-1 w-full bg-gray-50 rounded-full overflow-hidden">
+                <div className={`h-full ${progressColors[color]} rounded-full transition-all duration-1000 w-[70%]`}></div>
+            </div>
+        </div>
+    );
 }
 
 function FilterSelect({ value, onChange, options, prefix }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const toggleOption = (opt) => {
+      if (value.includes(opt)) {
+          onChange(value.filter(v => v !== opt));
+      } else {
+          onChange([...value, opt]);
+      }
+  };
+  
+  const displayCount = value.length === 0 ? 'ALL' : `${value.length} Sel`;
+
   return (
     <div className="relative group">
-        <select value={value} onChange={e => onChange(e.target.value)}
-          className="bg-gray-100 border-none text-gray-700 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 pr-10 rounded-xl appearance-none cursor-pointer hover:bg-gray-200 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
-          style={{
-            backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
-            backgroundPosition: 'right 0.75rem center',
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: '1.25em 1.25em',
-          }}>
-          {options.map(o => (
-            <option key={o} value={o}>{o === 'All' ? `${prefix}: ALL` : o}</option>
-          ))}
-        </select>
+        <button 
+            onClick={() => setIsOpen(!isOpen)}
+            className="bg-gray-100 border-none text-gray-700 text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 flex items-center justify-between gap-3 min-w-[140px] rounded-xl hover:bg-gray-200 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+        >
+            <span>{prefix}: {displayCount}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        
+        {isOpen && (
+            <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+                <div className="absolute top-full left-0 mt-2 w-56 bg-white border border-gray-100 shadow-2xl rounded-2xl z-50 py-2 max-h-64 overflow-y-auto overflow-x-hidden">
+                    {options.map(o => {
+                        if (o === 'All') return null;
+                        const isSelected = value.includes(o);
+                        return (
+                            <button 
+                                key={o} 
+                                onClick={() => toggleOption(o)}
+                                className="w-full text-left px-4 py-2 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                            >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-gray-50 border-gray-200'}`}>
+                                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                </div>
+                                <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-gray-900' : 'text-gray-500'} break-words whitespace-normal`}>{o}</span>
+                            </button>
+                        );
+                    })}
+                    {options.length <= 1 && (
+                        <div className="px-4 py-2 text-xs text-gray-400 font-bold uppercase tracking-widest text-center">No Data</div>
+                    )}
+                </div>
+            </>
+        )}
     </div>
   );
 }

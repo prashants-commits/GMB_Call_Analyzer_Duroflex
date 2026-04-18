@@ -21,11 +21,13 @@ export default function LoginPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    const user = STATIC_USERS.find(u => u.email === email && u.password === password);
+    const currentEmail = email.trim();
+    const currentPassword = password.trim();
+    const user = STATIC_USERS.find(u => u.email === currentEmail && u.password === currentPassword);
     
     if (user) {
       localStorage.setItem('isAuthenticated', 'true');
-      localStorage.setItem('userEmail', email);
+      localStorage.setItem('userEmail', currentEmail);
       navigate('/');
     } else {
       setError('Invalid email or password. Please try again.');
@@ -95,7 +97,7 @@ export default function LoginPage() {
               <label htmlFor="email" className="block text-sm font-semibold text-gray-800 mb-1">Corporate Email</label>
               <input 
                 id="email" 
-                type="email" 
+                type="text" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="leadership@duroflex.com" 

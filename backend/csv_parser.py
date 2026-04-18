@@ -383,6 +383,16 @@ def _build_analytics_summary(row: Dict[str, str]) -> Dict[str, Any]:
         "funnel_stage": safe_str(row.get("4_Funnel_Analysis_Stage")),
         "product_category": safe_str(row.get("6_Product_Intelligence_Category")),
         "price_bucket": safe_str(row.get("MetaData_Customer_Income_Group")),
+        "purchase_barrier": safe_str(row.get("8_Visit_Purchase_Barriers_Primary_Purchase_Barrier")),
+        
+        "is_converted": safe_str(row.get("is_Converted")),
+        "revenue": safe_str(row.get("Revenue")),
+        
+        "store_invitation": safe_str(row.get("10_Conversion_Hooks_Used_Store_Footfall_Driver_Used")),
+        "wa_connection": safe_str(row.get("10_Conversion_Hooks_Used_WhatsApp_Connection_Used")),
+        "video_demo": safe_str(row.get("10_Conversion_Hooks_Used_Video_Demo_Used")),
+        "probing_why": safe_str(row.get("11_Probing_Questions_Why_Buying_Asked")),
+        "proactive": safe_str(row.get("15_Agent_Evaluation_Agent_Nature")),
         
         # RELAX Scores (Raw for averaging)
         "relax": {

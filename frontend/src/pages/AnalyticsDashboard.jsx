@@ -10,7 +10,8 @@ import {
   ArrowRight,
   TrendingDown,
   Activity,
-  DollarSign
+  DollarSign,
+  Download
 } from 'lucide-react';
 import { fetchAnalyticsData, parseDate } from '../utils/api';
 
@@ -21,13 +22,13 @@ export default function AnalyticsDashboard() {
   const [error, setError] = useState('');
 
   // Local Filters
-  const [storeFilter, setStoreFilter] = useState('All');
-  const [callTypeFilter, setCallTypeFilter] = useState('All');
-  const [intentFilter, setIntentFilter] = useState('All');
-  const [visitFilter, setVisitFilter] = useState('All');
-  const [npsAgentFilter, setNpsAgentFilter] = useState('All');
-  const [npsBrandFilter, setNpsBrandFilter] = useState('All');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [storeFilter, setStoreFilter] = useState([]);
+  const [callTypeFilter, setCallTypeFilter] = useState([]);
+  const [intentFilter, setIntentFilter] = useState([]);
+  const [visitFilter, setVisitFilter] = useState([]);
+  const [npsAgentFilter, setNpsAgentFilter] = useState([]);
+  const [npsBrandFilter, setNpsBrandFilter] = useState([]);
+  const [categoryFilter, setCategoryFilter] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -44,25 +45,33 @@ export default function AnalyticsDashboard() {
   const filteredCalls = useMemo(() => {
     let result = data.reports || [];
 
-    if (storeFilter !== 'All') result = result.filter(r => r.store_name === storeFilter);
-    if (callTypeFilter !== 'All') result = result.filter(r => r.call_type === callTypeFilter);
-    if (intentFilter !== 'All') result = result.filter(r => r.intent_rating === intentFilter);
-    if (visitFilter !== 'All') result = result.filter(r => r.visit_rating === visitFilter);
-    if (categoryFilter !== 'All') result = result.filter(r => r.product_category === categoryFilter);
+    if (storeFilter.length > 0) result = result.filter(r => storeFilter.includes(r.store_name));
+    if (callTypeFilter.length > 0) result = result.filter(r => callTypeFilter.includes(r.call_type));
+    if (intentFilter.length > 0) result = result.filter(r => intentFilter.includes(r.intent_rating));
+    if (visitFilter.length > 0) result = result.filter(r => visitFilter.includes(r.visit_rating));
+    if (categoryFilter.length > 0) result = result.filter(r => categoryFilter.includes(r.product_category));
     
-    if (npsAgentFilter !== 'All') {
+    if (npsAgentFilter.length > 0) {
         result = result.filter(r => {
-            if (npsAgentFilter === 'HIGH') return r.nps_agent >= 8;
-            if (npsAgentFilter === 'MEDIUM') return r.nps_agent >= 5 && r.nps_agent < 8;
-            return r.nps_agent < 5;
+            const isHigh = r.nps_agent >= 8;
+            const isMedium = r.nps_agent >= 5 && r.nps_agent < 8;
+            const isLow = r.nps_agent < 5;
+            if (npsAgentFilter.includes('HIGH') && isHigh) return true;
+            if (npsAgentFilter.includes('MEDIUM') && isMedium) return true;
+            if (npsAgentFilter.includes('LOW') && isLow) return true;
+            return false;
         });
     }
 
-    if (npsBrandFilter !== 'All') {
+    if (npsBrandFilter.length > 0) {
         result = result.filter(r => {
-            if (npsBrandFilter === 'HIGH') return r.nps_brand >= 8;
-            if (npsBrandFilter === 'MEDIUM') return r.nps_brand >= 5 && r.nps_brand < 8;
-            return r.nps_brand < 5;
+            const isHigh = r.nps_brand >= 8;
+            const isMedium = r.nps_brand >= 5 && r.nps_brand < 8;
+            const isLow = r.nps_brand < 5;
+            if (npsBrandFilter.includes('HIGH') && isHigh) return true;
+            if (npsBrandFilter.includes('MEDIUM') && isMedium) return true;
+            if (npsBrandFilter.includes('LOW') && isLow) return true;
+            return false;
         });
     }
 
@@ -94,8 +103,31 @@ export default function AnalyticsDashboard() {
 
   const metrics = useMemo(() => {
     const total = filteredCalls.length;
-    const salesLeads = filteredCalls.filter(r => (r.call_objective || '').toLowerCase().includes('sales')).length;
     
+    let convertedCount = 0;
+    let totalRevenue = 0;
+
+    filteredCalls.forEach(r => {
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            convertedCount++;
+        }
+        
+        let rev = 0;
+        if (r.revenue) {
+            rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        }
+        totalRevenue += rev;
+    });
+
+    const conversionPercent = total > 0 ? ((convertedCount / total) * 100).toFixed(1) : "0.0";
+    const revPerLead = total > 0 ? (totalRevenue / total) : 0;
+    const arpu = convertedCount > 0 ? (totalRevenue / convertedCount) : 0;
+
+    const formatter = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+    const totalRevenueFormatted = formatter.format(totalRevenue);
+    const revPerLeadFormatted = formatter.format(revPerLead);
+    const arpuFormatted = formatter.format(arpu);
+
     // Bad calls: High Intent but Low Agent NPS/CX
     // Let's define Low as MEDIUM or LOW (anything not HIGH)
     const badCalls = filteredCalls.filter(r => r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH');
@@ -115,6 +147,39 @@ export default function AnalyticsDashboard() {
         }
     });
 
+    // City Performance
+    const cityMap = {};
+    filteredCalls.forEach(r => {
+        const city = r.city || 'Unknown';
+        if (!cityMap[city]) {
+            cityMap[city] = { 
+                city: city, calls: 0, badCalls: 0, 
+                sumAgent: 0, sumBrand: 0, countNps: 0,
+                convertedCount: 0, totalRevenue: 0,
+                storeInvCount: 0, waCount: 0, videoCount: 0, probingWhyCount: 0, proactiveCount: 0
+            };
+        }
+        const c = cityMap[city];
+        c.calls++;
+        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') c.badCalls++;
+        c.sumAgent += r.nps_agent;
+        c.sumBrand += r.nps_brand;
+        c.countNps++;
+
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            c.convertedCount++;
+        }
+        let rev = 0;
+        if (r.revenue) rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        c.totalRevenue += rev;
+        
+        if (String(r.store_invitation).toLowerCase() === 'yes') c.storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') c.waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') c.videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') c.probingWhyCount++;
+        if (String(r.proactive).toLowerCase() === 'proactive') c.proactiveCount++;
+    });
+
     // Store Performance
     const storeMap = {};
     filteredCalls.forEach(r => {
@@ -122,7 +187,9 @@ export default function AnalyticsDashboard() {
             storeMap[r.store_name] = { 
                 name: r.store_name, city: r.city, calls: 0, badCalls: 0, 
                 sumAgent: 0, sumBrand: 0, countNps: 0,
-                r: 0, e: 0, l: 0, a: 0, x: 0
+                r: 0, e: 0, l: 0, a: 0, x: 0,
+                convertedCount: 0, totalRevenue: 0,
+                storeInvCount: 0, waCount: 0, videoCount: 0, probingWhyCount: 0, proactiveCount: 0
             };
         }
         const s = storeMap[r.store_name];
@@ -136,6 +203,19 @@ export default function AnalyticsDashboard() {
         s.l += r.relax.l;
         s.a += r.relax.a;
         s.x += r.relax.x;
+
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            s.convertedCount++;
+        }
+        let rev = 0;
+        if (r.revenue) rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        s.totalRevenue += rev;
+        
+        if (String(r.store_invitation).toLowerCase() === 'yes') s.storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') s.waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') s.videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') s.probingWhyCount++;
+        if (String(r.proactive).toLowerCase() === 'proactive') s.proactiveCount++;
     });
 
     // Price Bucket Performance
@@ -146,7 +226,8 @@ export default function AnalyticsDashboard() {
             priceMap[bucket] = { 
                 bucket, calls: 0, badCalls: 0, 
                 sumAgent: 0, sumBrand: 0, countNps: 0,
-                r: 0, e: 0, l: 0, a: 0, x: 0
+                convertedCount: 0, totalRevenue: 0,
+                storeInvCount: 0, waCount: 0, videoCount: 0, probingWhyCount: 0, proactiveCount: 0
             };
         }
         const b = priceMap[bucket];
@@ -155,22 +236,144 @@ export default function AnalyticsDashboard() {
         b.sumAgent += r.nps_agent;
         b.sumBrand += r.nps_brand;
         b.countNps++;
-        b.r += r.relax.r;
-        b.e += r.relax.e;
-        b.l += r.relax.l;
-        b.a += r.relax.a;
-        b.x += r.relax.x;
+
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            b.convertedCount++;
+        }
+        let rev = 0;
+        if (r.revenue) rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        b.totalRevenue += rev;
+        
+        if (String(r.store_invitation).toLowerCase() === 'yes') b.storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') b.waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') b.videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') b.probingWhyCount++;
+        if (String(r.proactive).toLowerCase() === 'proactive') b.proactiveCount++;
     });
 
-    return { total, salesLeads, badCallsCount: badCalls.length, matrix, storeMap, priceMap };
+    // Product Category Performance
+    const categoryMap = {};
+    filteredCalls.forEach(r => {
+        const cat = r.product_category || 'Unknown';
+        if (!categoryMap[cat]) {
+            categoryMap[cat] = { 
+                category: cat, calls: 0, badCalls: 0, 
+                sumAgent: 0, sumBrand: 0, countNps: 0,
+                convertedCount: 0, totalRevenue: 0,
+                storeInvCount: 0, waCount: 0, videoCount: 0, probingWhyCount: 0, proactiveCount: 0
+            };
+        }
+        const c = categoryMap[cat];
+        c.calls++;
+        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') c.badCalls++;
+        c.sumAgent += r.nps_agent;
+        c.sumBrand += r.nps_brand;
+        c.countNps++;
+
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            c.convertedCount++;
+        }
+        let rev = 0;
+        if (r.revenue) rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        c.totalRevenue += rev;
+        
+        if (String(r.store_invitation).toLowerCase() === 'yes') c.storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') c.waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') c.videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') c.probingWhyCount++;
+        if (String(r.proactive).toLowerCase() === 'proactive') c.proactiveCount++;
+    });
+
+    // Purchase Barrier Performance
+    const barrierMap = {};
+    filteredCalls.forEach(r => {
+        const barrier = r.purchase_barrier || 'Unknown';
+        if (!barrierMap[barrier]) {
+            barrierMap[barrier] = { 
+                barrier: barrier, calls: 0, badCalls: 0, 
+                sumAgent: 0, sumBrand: 0, countNps: 0,
+                convertedCount: 0, totalRevenue: 0,
+                storeInvCount: 0, waCount: 0, videoCount: 0, probingWhyCount: 0, proactiveCount: 0
+            };
+        }
+        const a = barrierMap[barrier];
+        a.calls++;
+        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') a.badCalls++;
+        a.sumAgent += r.nps_agent;
+        a.sumBrand += r.nps_brand;
+        a.countNps++;
+
+        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+            a.convertedCount++;
+        }
+        let rev = 0;
+        if (r.revenue) rev = parseFloat(String(r.revenue).replace(/[^0-9.-]+/g, "")) || 0;
+        a.totalRevenue += rev;
+        
+        if (String(r.store_invitation).toLowerCase() === 'yes') a.storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') a.waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') a.videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') a.probingWhyCount++;
+        if (String(r.proactive).toLowerCase() === 'proactive') a.proactiveCount++;
+    });
+
+    return { 
+        total, 
+        salesLeads: total, 
+        badCallsCount: badCalls.length, 
+        matrix, cityMap, storeMap, priceMap, categoryMap, barrierMap, 
+        conversionPercent, 
+        totalRevenueFormatted, 
+        revPerLeadFormatted,
+        arpuFormatted 
+    };
   }, [filteredCalls]);
 
   const handleMatrixClick = (intent, exp) => {
     navigate('/listing', { state: { intentFilter: intent, expFilter: exp, startDate, endDate } });
   };
 
-  const navigateToListWithStore = (store) => {
-    navigate('/listing', { state: { storeFilter: store, startDate, endDate } });
+  const navigateToListWithFilter = (key, value) => {
+    navigate('/listing', { state: { [key]: value, startDate, endDate } });
+  };
+
+  const downloadCSV = (filename, headers, rows) => {
+      const csvContent = [
+          headers.join(','),
+          ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const exportTableData = (filename, pkName, dataArray, pkField) => {
+      const headers = [pkName, '# of Leads', 'Revenue per Lead', 'Conversion %', 'ARPU', '% Bad Calls', 'Avg NPS (Agent)', 'Avg NPS (Brand)', 'Store Invitation %', 'WA Connection %', 'Video Demo %', 'Probing - Why %', 'ProActive %'];
+      
+      const rows = dataArray.map(obj => {
+          const leads = obj.calls;
+          const revPerLead = leads > 0 ? '₹' + Math.round(obj.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+          const conversion = leads > 0 ? (obj.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+          const arpu = obj.convertedCount > 0 ? '₹' + Math.round(obj.totalRevenue / obj.convertedCount).toLocaleString('en-IN') : '₹0';
+          const badCallsPerc = leads > 0 ? (obj.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+          const npsAgent = obj.countNps > 0 ? Math.round((obj.sumAgent / obj.countNps) * 10) + '%' : '0%';
+          const npsBrand = obj.countNps > 0 ? Math.round((obj.sumBrand / obj.countNps) * 10) + '%' : '0%';
+          const storeInvPerc = leads > 0 ? Math.round(obj.storeInvCount / leads * 100) + '%' : '0%';
+          const waPerc = leads > 0 ? Math.round(obj.waCount / leads * 100) + '%' : '0%';
+          const videoPerc = leads > 0 ? Math.round(obj.videoCount / leads * 100) + '%' : '0%';
+          const probingWhyPerc = leads > 0 ? Math.round(obj.probingWhyCount / leads * 100) + '%' : '0%';
+          const proactivePerc = leads > 0 ? Math.round(obj.proactiveCount / leads * 100) + '%' : '0%';
+          
+          return [obj[pkField], leads, revPerLead, conversion, arpu, badCallsPerc, npsAgent, npsBrand, storeInvPerc, waPerc, videoPerc, probingWhyPerc, proactivePerc];
+      });
+
+      downloadCSV(filename, headers, rows);
   };
 
   if (loading) return (
@@ -219,49 +422,49 @@ export default function AnalyticsDashboard() {
               label="Store" 
               value={storeFilter} 
               onChange={setStoreFilter} 
-              options={['All', ...data.filters.stores]} 
+              options={data.filters.stores} 
             />
             
             <FilterSelect 
               label="Call Type" 
               value={callTypeFilter} 
               onChange={setCallTypeFilter} 
-              options={['All', ...new Set(data.reports.map(r => r.call_type).filter(Boolean))]} 
+              options={[...new Set(data.reports.map(r => r.call_type).filter(Boolean))]} 
             />
 
             <FilterSelect 
               label="Purchase Intent" 
               value={intentFilter} 
               onChange={setIntentFilter} 
-              options={['All', 'HIGH', 'MEDIUM', 'LOW']} 
+              options={['HIGH', 'MEDIUM', 'LOW']} 
             />
 
             <FilterSelect 
               label="Visit Intent" 
               value={visitFilter} 
               onChange={setVisitFilter} 
-              options={['All', 'HIGH', 'MEDIUM', 'LOW']} 
+              options={['HIGH', 'MEDIUM', 'LOW']} 
             />
 
             <FilterSelect 
               label="Agent NPS" 
               value={npsAgentFilter} 
               onChange={setNpsAgentFilter} 
-              options={['All', 'HIGH', 'MEDIUM', 'LOW']} 
+              options={['HIGH', 'MEDIUM', 'LOW']} 
             />
 
             <FilterSelect 
               label="Brand NPS" 
               value={npsBrandFilter} 
               onChange={setNpsBrandFilter} 
-              options={['All', 'HIGH', 'MEDIUM', 'LOW']} 
+              options={['HIGH', 'MEDIUM', 'LOW']} 
             />
 
             <FilterSelect 
               label="Category" 
               value={categoryFilter} 
               onChange={setCategoryFilter} 
-              options={['All', ...data.filters.product_categories]} 
+              options={data.filters.product_categories} 
             />
 
             <div className="flex items-center gap-2 px-4 border-l border-slate-100 ml-2">
@@ -287,9 +490,9 @@ export default function AnalyticsDashboard() {
 
             <button 
               onClick={() => {
-                setStoreFilter('All'); setCallTypeFilter('All'); setIntentFilter('All');
-                setVisitFilter('All'); setNpsAgentFilter('All'); setNpsBrandFilter('All');
-                setCategoryFilter('All'); setStartDate(''); setEndDate('');
+                setStoreFilter([]); setCallTypeFilter([]); setIntentFilter([]);
+                setVisitFilter([]); setNpsAgentFilter([]); setNpsBrandFilter([]);
+                setCategoryFilter([]); setStartDate(''); setEndDate('');
               }}
               className="ml-auto text-xs font-bold text-red-500 hover:text-red-700"
             >
@@ -298,27 +501,41 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* KPI Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-12">
             <KpiCard 
-              label="Total Volume" 
-              value={metrics.total} 
-              subtitle="Total Analyzed Reports" 
+              label="Total Sales Calls" 
+              value={metrics.salesLeads} 
+              subtitle="All Calls that specifically had Sales Intent, excluding all Post Purchase Calls" 
               color="indigo" 
               icon={<Users />} 
             />
             <KpiCard 
-              label="Sales Potential" 
-              value={metrics.salesLeads} 
-              subtitle="Primary Sales Inquiries" 
+              label="Revenue per Lead" 
+              value={metrics.revPerLeadFormatted} 
+              subtitle="Total Revenue received against all Sales leads" 
+              color="emerald" 
+              icon={<DollarSign />} 
+            />
+            <KpiCard 
+              label="Conversion %" 
+              value={`${metrics.conversionPercent}%`} 
+              subtitle="What % of Sales Leads placed Ordered" 
               color="emerald" 
               icon={<Target />} 
             />
             <KpiCard 
-              label="Bad Experience" 
-              value={metrics.badCallsCount} 
-              subtitle="High Intent / Low NPS Calls" 
-              color="rose" 
-              icon={<TrendingDown />} 
+              label="Revenue" 
+              value={metrics.totalRevenueFormatted} 
+              subtitle="What is the total Received Revenue against all Sales leads" 
+              color="indigo" 
+              icon={<DollarSign />} 
+            />
+            <KpiCard 
+              label="ARPU" 
+              value={metrics.arpuFormatted} 
+              subtitle="Avg Revenue per Converted lead" 
+              color="emerald" 
+              icon={<Activity />} 
             />
         </div>
 
@@ -358,6 +575,84 @@ export default function AnalyticsDashboard() {
             </div>
         </div>
 
+        {/* City Performance */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-16">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <div className="bg-fuchsia-100 p-3 rounded-2xl text-fuchsia-600">
+                        <MapPin className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Fraunces', serif" }}>City Performance</h2>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Aggregated performance metrics per city</p>
+                    </div>
+                </div>
+                <button 
+                  onClick={() => exportTableData('city_performance.csv', 'City', Object.values(metrics.cityMap).sort((a,b) => b.calls - a.calls), 'city')}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                    <Download className="w-3.5 h-3.5" /> Export
+                </button>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                        <tr>
+                            <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">City</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue per Lead</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">ARPU</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">% Bad Calls</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Agent)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Brand)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">Store Invitation %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">WA Connection %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Video Demo %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Probing - Why %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">ProActive %</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {Object.values(metrics.cityMap).sort((a,b) => b.calls - a.calls).map(c => {
+                            const leads = c.calls;
+                            const revPerLead = leads > 0 ? '₹' + Math.round(c.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+                            const conversion = leads > 0 ? (c.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const arpu = c.convertedCount > 0 ? '₹' + Math.round(c.totalRevenue / c.convertedCount).toLocaleString('en-IN') : '₹0';
+                            const badCallsPerc = leads > 0 ? (c.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const npsAgent = c.countNps > 0 ? Math.round((c.sumAgent / c.countNps) * 10) + '%' : '0%';
+                            const npsBrand = c.countNps > 0 ? Math.round((c.sumBrand / c.countNps) * 10) + '%' : '0%';
+                            const storeInvPerc = leads > 0 ? Math.round(c.storeInvCount / leads * 100) + '%' : '0%';
+                            const waPerc = leads > 0 ? Math.round(c.waCount / leads * 100) + '%' : '0%';
+                            const videoPerc = leads > 0 ? Math.round(c.videoCount / leads * 100) + '%' : '0%';
+                            const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
+                            const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
+
+                            return (
+                                <tr key={c.city} onClick={() => navigateToListWithFilter('cityFilter', c.city)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                    <td className="p-6">
+                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.city}</div>
+                                    </td>
+                                    <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
+                                    <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
+                                    <td className="p-6 text-center font-bold text-emerald-600">{conversion}</td>
+                                    <td className="p-6 text-center font-bold text-indigo-600">{arpu}</td>
+                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{badCallsPerc}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsAgent}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsBrand}</td>
+                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{storeInvPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{waPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{videoPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{probingWhyPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{proactivePerc}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         {/* Store Performance Matrix */}
         <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-16">
             <div className="p-8 border-b border-slate-100 flex justify-between items-center">
@@ -370,59 +665,65 @@ export default function AnalyticsDashboard() {
                         <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Weighted performance metrics per store location</p>
                     </div>
                 </div>
+                <button 
+                  onClick={() => exportTableData('store_performance.csv', 'Store', Object.values(metrics.storeMap).sort((a,b) => b.calls - a.calls), 'name')}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                    <Download className="w-3.5 h-3.5" /> Export
+                </button>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-slate-50/50">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Store Details</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-900 uppercase tracking-widest bg-slate-100">Overall</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Calls</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">Bad Calls</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (A)</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (B)</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">R</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">E</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">L</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">A</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">X</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue per Lead</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">ARPU</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">% Bad Calls</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Agent)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Brand)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">Store Invitation %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">WA Connection %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Video Demo %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Probing - Why %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">ProActive %</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {Object.values(metrics.storeMap).sort((a,b) => b.calls - a.calls).map(s => {
-                            // Scale 1-3 scores to 1-10 for the 10-point scale dashboard
-                            const scale = (val) => (val * 3.33); 
-                            const avgA = (s.sumAgent / s.countNps).toFixed(1);
-                            const avgB = (s.sumBrand / s.countNps).toFixed(1);
-                            const avgR = (s.r / s.calls).toFixed(1);
-                            const avgE = (s.e / s.calls).toFixed(1);
-                            const avgL = (s.l / s.calls).toFixed(1);
-                            const avgA_R = (s.a / s.calls).toFixed(1);
-                            const avgX = (s.x / s.calls).toFixed(1);
-                            
-                            // Overall score as a weighted blend or simple average of scaled components
-                            const overall = ((scale(Number(avgR)) + scale(Number(avgE)) + scale(Number(avgL)) + scale(Number(avgA_R)) + scale(Number(avgX))) / 5).toFixed(1);
+                            const leads = s.calls;
+                            const revPerLead = leads > 0 ? '₹' + Math.round(s.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+                            const conversion = leads > 0 ? (s.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const arpu = s.convertedCount > 0 ? '₹' + Math.round(s.totalRevenue / s.convertedCount).toLocaleString('en-IN') : '₹0';
+                            const badCallsPerc = leads > 0 ? (s.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const npsAgent = s.countNps > 0 ? Math.round((s.sumAgent / s.countNps) * 10) + '%' : '0%';
+                            const npsBrand = s.countNps > 0 ? Math.round((s.sumBrand / s.countNps) * 10) + '%' : '0%';
+                            const storeInvPerc = leads > 0 ? Math.round(s.storeInvCount / leads * 100) + '%' : '0%';
+                            const waPerc = leads > 0 ? Math.round(s.waCount / leads * 100) + '%' : '0%';
+                            const videoPerc = leads > 0 ? Math.round(s.videoCount / leads * 100) + '%' : '0%';
+                            const probingWhyPerc = leads > 0 ? Math.round(s.probingWhyCount / leads * 100) + '%' : '0%';
+                            const proactivePerc = leads > 0 ? Math.round(s.proactiveCount / leads * 100) + '%' : '0%';
 
                             return (
-                                <tr key={s.name} onClick={() => navigateToListWithStore(s.name)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={s.name} onClick={() => navigateToListWithFilter('storeFilter', s.name)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
                                         <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{s.name}</div>
                                         <div className="text-xs text-slate-400 font-bold">{s.city}</div>
                                     </td>
-                                    <td className="p-6 text-center bg-slate-100/30">
-                                        <span className={`inline-block px-3 py-1 rounded-xl font-black text-sm border ${getScoreClass(overall)}`}>
-                                            {overall}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 text-center font-bold text-slate-600">{s.calls}</td>
-                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{s.badCalls}</td>
-                                    <td className="p-6 text-center font-bold text-slate-900">{avgA}</td>
-                                    <td className="p-6 text-center font-bold text-slate-900">{avgB}</td>
-                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{avgR}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgE}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgL}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgA_R}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgX}</td>
+                                    <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
+                                    <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
+                                    <td className="p-6 text-center font-bold text-emerald-600">{conversion}</td>
+                                    <td className="p-6 text-center font-bold text-indigo-600">{arpu}</td>
+                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{badCallsPerc}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsAgent}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsBrand}</td>
+                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{storeInvPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{waPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{videoPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{probingWhyPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{proactivePerc}</td>
                                 </tr>
                             );
                         })}
@@ -443,56 +744,221 @@ export default function AnalyticsDashboard() {
                         <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Experience correlation by spending power</p>
                     </div>
                 </div>
+                <button 
+                  onClick={() => exportTableData('price_bucket_performance.csv', 'Income/Price Group', Object.values(metrics.priceMap).sort((a,b) => b.calls - a.calls), 'bucket')}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                    <Download className="w-3.5 h-3.5" /> Export
+                </button>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-slate-50/50">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Income/Price Group</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-900 uppercase tracking-widest bg-slate-100">Overall</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Calls</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">Bad Calls</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (A)</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (B)</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">R</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">E</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">L</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">A</th>
-                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">X</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue per Lead</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">ARPU</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">% Bad Calls</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Agent)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Brand)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">Store Invitation %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">WA Connection %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Video Demo %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Probing - Why %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">ProActive %</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {Object.values(metrics.priceMap).sort((a,b) => b.calls - a.calls).map(b => {
-                            const scale = (val) => (val * 3.33);
-                            const avgA = (b.sumAgent / b.countNps).toFixed(1);
-                            const avgB = (b.sumBrand / b.countNps).toFixed(1);
-                            const avgR = (b.r / b.calls).toFixed(1);
-                            const avgE = (b.e / b.calls).toFixed(1);
-                            const avgL = (b.l / b.calls).toFixed(1);
-                            const avgA_R = (b.a / b.calls).toFixed(1);
-                            const avgX = (b.x / b.calls).toFixed(1);
-                            const overall = ((scale(Number(avgR)) + scale(Number(avgE)) + scale(Number(avgL)) + scale(Number(avgA_R)) + scale(Number(avgX))) / 5).toFixed(1);
+                            const leads = b.calls;
+                            const revPerLead = leads > 0 ? '₹' + Math.round(b.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+                            const conversion = leads > 0 ? (b.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const arpu = b.convertedCount > 0 ? '₹' + Math.round(b.totalRevenue / b.convertedCount).toLocaleString('en-IN') : '₹0';
+                            const badCallsPerc = leads > 0 ? (b.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const npsAgent = b.countNps > 0 ? Math.round((b.sumAgent / b.countNps) * 10) + '%' : '0%';
+                            const npsBrand = b.countNps > 0 ? Math.round((b.sumBrand / b.countNps) * 10) + '%' : '0%';
+                            const storeInvPerc = leads > 0 ? Math.round(b.storeInvCount / leads * 100) + '%' : '0%';
+                            const waPerc = leads > 0 ? Math.round(b.waCount / leads * 100) + '%' : '0%';
+                            const videoPerc = leads > 0 ? Math.round(b.videoCount / leads * 100) + '%' : '0%';
+                            const probingWhyPerc = leads > 0 ? Math.round(b.probingWhyCount / leads * 100) + '%' : '0%';
+                            const proactivePerc = leads > 0 ? Math.round(b.proactiveCount / leads * 100) + '%' : '0%';
 
                             return (
-                                <tr key={b.bucket} className="group hover:bg-slate-50 transition-all">
+                                <tr key={b.bucket} onClick={() => navigateToListWithFilter('priceFilter', b.bucket)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 uppercase tracking-tight">{b.bucket}</div>
+                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{b.bucket}</div>
                                         <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Segment Data</div>
                                     </td>
-                                    <td className="p-6 text-center bg-slate-100/30">
-                                        <span className={`inline-block px-3 py-1 rounded-xl font-black text-sm border ${getScoreClass(overall)}`}>
-                                            {overall}
-                                        </span>
+                                    <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
+                                    <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
+                                    <td className="p-6 text-center font-bold text-emerald-600">{conversion}</td>
+                                    <td className="p-6 text-center font-bold text-indigo-600">{arpu}</td>
+                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{badCallsPerc}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsAgent}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsBrand}</td>
+                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{storeInvPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{waPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{videoPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{probingWhyPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{proactivePerc}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* Product Category wise Performance */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mt-16">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <div className="bg-blue-100 p-3 rounded-2xl text-blue-600">
+                        <ShoppingCart className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Fraunces', serif" }}>Product Category wise Performance</h2>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Top 15 Categories by Volume</p>
+                    </div>
+                </div>
+                <button 
+                  onClick={() => exportTableData('product_category_performance.csv', 'Category', Object.values(metrics.categoryMap).sort((a,b) => b.calls - a.calls).slice(0, 15), 'category')}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                    <Download className="w-3.5 h-3.5" /> Export
+                </button>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                        <tr>
+                            <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue per Lead</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">ARPU</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">% Bad Calls</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Agent)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Brand)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">Store Invitation %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">WA Connection %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Video Demo %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Probing - Why %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">ProActive %</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {Object.values(metrics.categoryMap).sort((a,b) => b.calls - a.calls).slice(0, 15).map(c => {
+                            const leads = c.calls;
+                            const revPerLead = leads > 0 ? '₹' + Math.round(c.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+                            const conversion = leads > 0 ? (c.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const arpu = c.convertedCount > 0 ? '₹' + Math.round(c.totalRevenue / c.convertedCount).toLocaleString('en-IN') : '₹0';
+                            const badCallsPerc = leads > 0 ? (c.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const npsAgent = c.countNps > 0 ? Math.round((c.sumAgent / c.countNps) * 10) + '%' : '0%';
+                            const npsBrand = c.countNps > 0 ? Math.round((c.sumBrand / c.countNps) * 10) + '%' : '0%';
+                            const storeInvPerc = leads > 0 ? Math.round(c.storeInvCount / leads * 100) + '%' : '0%';
+                            const waPerc = leads > 0 ? Math.round(c.waCount / leads * 100) + '%' : '0%';
+                            const videoPerc = leads > 0 ? Math.round(c.videoCount / leads * 100) + '%' : '0%';
+                            const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
+                            const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
+
+                            return (
+                                <tr key={c.category} onClick={() => navigateToListWithFilter('categoryFilter', c.category)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                    <td className="p-6">
+                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.category}</div>
                                     </td>
-                                    <td className="p-6 text-center font-bold text-slate-600">{b.calls}</td>
-                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{b.badCalls}</td>
-                                    <td className="p-6 text-center font-bold text-slate-900">{avgA}</td>
-                                    <td className="p-6 text-center font-bold text-slate-900">{avgB}</td>
-                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{avgR}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgE}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgL}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgA_R}</td>
-                                    <td className="p-6 text-center text-slate-500">{avgX}</td>
+                                    <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
+                                    <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
+                                    <td className="p-6 text-center font-bold text-emerald-600">{conversion}</td>
+                                    <td className="p-6 text-center font-bold text-indigo-600">{arpu}</td>
+                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{badCallsPerc}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsAgent}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsBrand}</td>
+                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{storeInvPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{waPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{videoPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{probingWhyPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{proactivePerc}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* Purchase Barrier Performance */}
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mt-16">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <div className="bg-red-100 p-3 rounded-2xl text-red-600">
+                        <TrendingDown className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Fraunces', serif" }}>Purchase Barrier Performance</h2>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Performance across Primary Purchase Barriers</p>
+                    </div>
+                </div>
+                <button 
+                  onClick={() => exportTableData('purchase_barrier_performance.csv', 'Barrier', Object.values(metrics.barrierMap).sort((a,b) => b.calls - a.calls), 'barrier')}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200"
+                >
+                    <Download className="w-3.5 h-3.5" /> Export
+                </button>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50/50">
+                        <tr>
+                            <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Barrier</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue per Lead</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">ARPU</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest bg-rose-50/30">% Bad Calls</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Agent)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg NPS (Brand)</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest border-l border-slate-100">Store Invitation %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">WA Connection %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Video Demo %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">Probing - Why %</th>
+                            <th className="p-6 text-center text-[10px] font-bold text-amber-600 uppercase tracking-widest">ProActive %</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {Object.values(metrics.barrierMap).sort((a,b) => b.calls - a.calls).map(c => {
+                            const leads = c.calls;
+                            const revPerLead = leads > 0 ? '₹' + Math.round(c.totalRevenue / leads).toLocaleString('en-IN') : '₹0';
+                            const conversion = leads > 0 ? (c.convertedCount / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const arpu = c.convertedCount > 0 ? '₹' + Math.round(c.totalRevenue / c.convertedCount).toLocaleString('en-IN') : '₹0';
+                            const badCallsPerc = leads > 0 ? (c.badCalls / leads * 100).toFixed(1) + '%' : '0.0%';
+                            const npsAgent = c.countNps > 0 ? Math.round((c.sumAgent / c.countNps) * 10) + '%' : '0%';
+                            const npsBrand = c.countNps > 0 ? Math.round((c.sumBrand / c.countNps) * 10) + '%' : '0%';
+                            const storeInvPerc = leads > 0 ? Math.round(c.storeInvCount / leads * 100) + '%' : '0%';
+                            const waPerc = leads > 0 ? Math.round(c.waCount / leads * 100) + '%' : '0%';
+                            const videoPerc = leads > 0 ? Math.round(c.videoCount / leads * 100) + '%' : '0%';
+                            const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
+                            const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
+
+                            return (
+                                <tr key={c.barrier} onClick={() => navigateToListWithFilter('barrierFilter', c.barrier)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                    <td className="p-6">
+                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.barrier}</div>
+                                    </td>
+                                    <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
+                                    <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
+                                    <td className="p-6 text-center font-bold text-emerald-600">{conversion}</td>
+                                    <td className="p-6 text-center font-bold text-indigo-600">{arpu}</td>
+                                    <td className="p-6 text-center font-black text-rose-500 bg-rose-50/20">{badCallsPerc}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsAgent}</td>
+                                    <td className="p-6 text-center font-bold text-slate-900">{npsBrand}</td>
+                                    <td className="p-6 text-center text-slate-500 border-l border-slate-50">{storeInvPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{waPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{videoPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{probingWhyPerc}</td>
+                                    <td className="p-6 text-center text-slate-500">{proactivePerc}</td>
                                 </tr>
                             );
                         })}
@@ -509,23 +975,55 @@ export default function AnalyticsDashboard() {
 /* --- Sub Components --- */
 
 function FilterSelect({ label, value, onChange, options }) {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const toggleOption = (opt) => {
+        if (value.includes(opt)) {
+            onChange(value.filter(v => v !== opt));
+        } else {
+            onChange([...value, opt]);
+        }
+    };
+    
+    const displayCount = value.length === 0 ? 'ALL' : `${value.length} Sel`;
+
     return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 relative group">
             <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">{label}</span>
-            <select 
-              value={value} 
-              onChange={e => onChange(e.target.value)}
-              className="bg-slate-50 border border-slate-100 text-xs font-bold text-slate-700 px-4 py-2.5 rounded-xl appearance-none cursor-pointer hover:bg-white focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all outline-none"
-              style={{
-                backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
-                backgroundPosition: 'right 0.75rem center',
-                backgroundRepeat: 'no-repeat',
-                backgroundSize: '1.25em 1.25em',
-                paddingRight: '2.5rem'
-              }}
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-700 px-4 py-2.5 flex items-center justify-between gap-3 min-w-[120px] rounded-xl hover:bg-white focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all outline-none"
             >
-                {options.map(o => <option key={o} value={o}>{o === 'All' ? `ALL ${label.toUpperCase()}S` : o}</option>)}
-            </select>
+                <span>{displayCount}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            
+            {isOpen && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+                    <div className="absolute top-[100%] left-0 mt-2 w-56 bg-white border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] rounded-2xl z-50 py-2 max-h-64 overflow-y-auto overflow-x-hidden">
+                        {options.map(o => {
+                            if (o === 'All') return null;
+                            const isSelected = value.includes(o);
+                            return (
+                                <button 
+                                    key={o} 
+                                    onClick={() => toggleOption(o)}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-50/80 flex items-center gap-3 transition-colors group/item"
+                                >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30' : 'bg-slate-50 border-slate-200 group-hover/item:border-indigo-300'}`}>
+                                        {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-slate-900' : 'text-slate-500'} break-words whitespace-normal`}>{o}</span>
+                                </button>
+                            );
+                        })}
+                        {options.length === 0 && (
+                            <div className="px-4 py-2 text-xs text-slate-400 font-bold uppercase tracking-widest text-center">No Options</div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -555,10 +1053,10 @@ function KpiCard({ label, value, subtitle, color, icon }) {
             
             <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{label}</span>
-                <span className="text-5xl font-black text-slate-900 tracking-tighter" style={{ fontFamily: "'Fraunces', serif" }}>
+                <span className="text-4xl font-black text-slate-900 tracking-tighter" style={{ fontFamily: "'Fraunces', serif" }}>
                     {value}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">{subtitle}</span>
+                <span className="text-[11px] text-slate-400 font-medium leading-snug mt-1">{subtitle}</span>
             </div>
             
             <div className="mt-6 h-1 w-full bg-slate-50 rounded-full overflow-hidden">
