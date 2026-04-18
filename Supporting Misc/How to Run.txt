@@ -16,10 +16,14 @@ python -m venv venv
 # Install dependencies
 pip install -r requirements.txt
 
-# Start the server
+# Start the server (for local development)
 python -m uvicorn main:app --reload
+
+# Start the server (for production / Render)
+# Use this as your Start Command in Render Dashboard:
+# uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
-*API location: http://localhost:8000*
+*API location (local): http://localhost:8000*
 
 ---
 
