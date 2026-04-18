@@ -48,7 +48,7 @@ export function parseDate(dateStr) {
   return new Date(y, m - 1, d);
 }
 
-const API_BASE = '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export async function fetchCalls() {
   const res = await fetch(`${API_BASE}/api/calls`);
