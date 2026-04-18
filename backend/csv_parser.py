@@ -414,6 +414,7 @@ class CallDataStore:
         self._summaries: List[Dict[str, Any]] = []
         self._analytics: List[Dict[str, Any]] = []
         self._details: Dict[str, Dict[str, Any]] = {}  # keyed by CleanNumber
+        self._raw_rows: Dict[str, Dict[str, str]] = {}  # raw CSV rows keyed by CleanNumber
         self._load()
 
     def _load(self):
@@ -444,6 +445,7 @@ class CallDataStore:
                 self._summaries.append(_build_call_summary(row))
                 self._analytics.append(_build_analytics_summary(row))
                 self._details[clean_number] = _build_call_detail(row)
+                self._raw_rows[clean_number] = dict(row)  # store raw CSV row for insight extraction
 
         print(f"Loaded {len(self._summaries)} calls from CSV")
 
@@ -461,3 +463,58 @@ class CallDataStore:
 
     def get_unique_cities(self) -> List[str]:
         return sorted(set(s["city"] for s in self._summaries if s["city"]))
+
+    def get_insight_columns(self, clean_numbers: List[str]) -> List[Dict[str, Any]]:
+        """Return the specific columns needed for Gemini insight generation.
+        
+        Extracts from the stored call details, remapping to the required fields.
+        """
+        INSIGHT_FIELDS = [
+            ("city", "City"),
+            ("store_name", "Store Name"),
+            ("product_category", "Product Category"),
+            ("purchase_barrier", "Purchase Barrier"),
+            ("call_summary", "Call Summary"),
+            ("customer_needs", "Customer Needs"),
+            ("agent_nps", "Agent NPS"),
+            ("agent_nps_reason", "Agent NPS Reason"),
+            ("agent_good", "Agent Good"),
+            ("agent_bad", "Agent Bad"),
+            ("brand_nps", "Brand NPS"),
+            ("brand_nps_reason", "Brand NPS Reason"),
+            ("brand_good", "Brand Good"),
+            ("brand_bad", "Brand Bad"),
+            ("purchase_barrier_detail", "Purchase Barrier Detail"),
+            ("agent_learnings", "Agent Learnings"),
+        ]
+
+        results = []
+        requested = set(clean_numbers)
+
+        for cn in clean_numbers:
+            detail = self._details.get(cn)
+            if not detail:
+                continue
+
+            row = {}
+            row["City"] = detail.get("identity", {}).get("city", "")
+            row["Store Name"] = detail.get("identity", {}).get("store_name", "")
+            row["Product Category"] = detail.get("product_intelligence", {}).get("category", "")
+            row["Purchase Barrier"] = detail.get("barriers", {}).get("purchase", {}).get("type", "")
+            row["Call Summary"] = detail.get("summary_signals", {}).get("call_summary", "")
+            row["Customer Needs"] = detail.get("customer_needs", {}).get("description", "")
+            row["Agent NPS"] = detail.get("experience", {}).get("agent", {}).get("nps", 0)
+            row["Agent NPS Reason"] = detail.get("experience", {}).get("agent", {}).get("reason", "")
+            row["Agent Good"] = detail.get("experience", {}).get("agent", {}).get("good", "")
+            row["Agent Bad"] = detail.get("experience", {}).get("agent", {}).get("bad", "")
+            row["Brand NPS"] = detail.get("experience", {}).get("brand", {}).get("nps", 0)
+            row["Brand NPS Reason"] = detail.get("experience", {}).get("brand", {}).get("reason", "")
+            row["Brand Good"] = detail.get("experience", {}).get("brand", {}).get("good", "")
+            row["Brand Bad"] = detail.get("experience", {}).get("brand", {}).get("bad", "")
+            row["Purchase Barrier Detail"] = detail.get("barriers", {}).get("purchase", {}).get("detail", "")
+            # Agent Learnings is in the raw CSV but not in _build_call_detail — read from raw rows
+            row["Agent Learnings"] = self._raw_rows.get(cn, {}).get("17_Agent_Learnings", "")
+
+            results.append(row)
+
+        return results

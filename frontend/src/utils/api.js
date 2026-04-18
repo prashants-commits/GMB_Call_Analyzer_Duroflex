@@ -71,3 +71,20 @@ export async function fetchAnalyticsData() {
   if (!res.ok) throw new Error('Failed to fetch analytics data');
   return res.json();
 }
+
+export async function generateInsightsReport(cleanNumbers, segmentDescription, dateRange) {
+  const res = await fetch(apiUrl('/api/generate-insights'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clean_numbers: cleanNumbers,
+      segment_description: segmentDescription,
+      date_range: dateRange
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+    throw new Error(err.detail || 'Failed to generate insights');
+  }
+  return res.json();
+}

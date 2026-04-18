@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import TrendsDashboard from './pages/TrendsDashboard';
+import InsightsDashboard from './pages/InsightsDashboard';
 import CallListPage from './pages/CallListPage';
 import CallDetailPage from './pages/CallDetailPage';
 import LoginPage from './pages/LoginPage';
@@ -32,6 +34,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AnalyticsDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trends"
+          element={
+            <ProtectedRoute>
+              <TrendsDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/insights"
+          element={
+            <ProtectedRoute>
+              <InsightsDashboard />
             </ProtectedRoute>
           }
         />

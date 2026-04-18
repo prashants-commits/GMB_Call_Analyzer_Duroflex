@@ -9,9 +9,11 @@ import {
   ShoppingCart, 
   ArrowRight,
   TrendingDown,
+  TrendingUp,
   Activity,
   DollarSign,
-  Download
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { fetchAnalyticsData, parseDate } from '../utils/api';
 
@@ -404,9 +406,29 @@ export default function AnalyticsDashboard() {
                 <p className="text-slate-500 font-medium">Aggregate intelligence across Google My Business call channels</p>
             </div>
             <div className="flex gap-4">
+                <button
+                    onClick={() => navigate('/insights')}
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-400 shadow-xl shadow-amber-500/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:from-amber-600 hover:to-orange-600 hover:scale-[1.02] transition-all group"
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-4 h-4 text-amber-200 group-hover:text-white transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-200 group-hover:text-white transition-colors">Insights</span>
+                    </div>
+                    <span className="text-lg font-black leading-none">Generate Report</span>
+                </button>
+                <button
+                    onClick={() => navigate('/trends')}
+                    className="bg-indigo-600 border border-indigo-500 shadow-xl shadow-indigo-600/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:bg-indigo-700 hover:scale-[1.02] transition-all group"
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp className="w-4 h-4 text-indigo-200 group-hover:text-white transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200 group-hover:text-white transition-colors">Trends Dashboard</span>
+                    </div>
+                    <span className="text-lg font-black leading-none">View KPI Trends</span>
+                </button>
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Calls</span>
-                    <span className="text-2xl font-black text-indigo-600">{filteredCalls.length}</span>
+                    <span className="text-2xl font-black text-indigo-600 leading-none mt-1">{filteredCalls.length}</span>
                 </div>
             </div>
         </div>
