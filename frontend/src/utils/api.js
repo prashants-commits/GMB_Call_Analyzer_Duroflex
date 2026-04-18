@@ -48,22 +48,26 @@ export function parseDate(dateStr) {
   return new Date(y, m - 1, d);
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
 
 export async function fetchCalls() {
-  const res = await fetch(`${API_BASE}/api/calls`);
+  const res = await fetch(apiUrl('/api/calls'));
   if (!res.ok) throw new Error('Failed to fetch calls');
   return res.json();
 }
 
 export async function fetchCallDetail(cleanNumber) {
-  const res = await fetch(`${API_BASE}/api/calls/${cleanNumber}`);
+  const res = await fetch(apiUrl(`/api/calls/${encodeURIComponent(cleanNumber)}`));
   if (!res.ok) throw new Error(`Call not found: ${cleanNumber}`);
   return res.json();
 }
 
 export async function fetchAnalyticsData() {
-  const res = await fetch(`${API_BASE}/api/analytics`);
+  const res = await fetch(apiUrl('/api/analytics'));
   if (!res.ok) throw new Error('Failed to fetch analytics data');
   return res.json();
 }
