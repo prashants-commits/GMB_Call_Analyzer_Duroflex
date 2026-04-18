@@ -10,14 +10,48 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
+const PublicOnlyRoute = ({ children }) => {
+  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  return isAuthenticated ? <Navigate to="/" replace /> : children;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<AnalyticsDashboard />} />
-        <Route path="/listing" element={<CallListPage />} />
-        <Route path="/call/:cleanNumber" element={<CallDetailPage />} />
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute>
+              <LoginPage />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <AnalyticsDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/listing"
+          element={
+            <ProtectedRoute>
+              <CallListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/call/:cleanNumber"
+          element={
+            <ProtectedRoute>
+              <CallDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
