@@ -15,9 +15,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<ProtectedRoute><AnalyticsDashboard /></ProtectedRoute>} />
-        <Route path="/listing" element={<ProtectedRoute><CallListPage /></ProtectedRoute>} />
-        <Route path="/call/:cleanNumber" element={<ProtectedRoute><CallDetailPage /></ProtectedRoute>} />
+        <Route path="/" element={<AnalyticsDashboard />} />
+        <Route path="/listing" element={<CallListPage />} />
+        <Route path="/call/:cleanNumber" element={<CallDetailPage />} />
       </Routes>
     </BrowserRouter>
   );
