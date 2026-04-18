@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-CSV_PATH = Path(__file__).resolve().parent.parent / "GMB Calls Analyzer - Call details (sample).csv"
+CSV_PATH = Path(__file__).resolve().parent / "GMB Calls Analyzer - Call details (sample).csv"
 
 # ── Score conversion helpers ─────────────────────────────────────────────────
 
