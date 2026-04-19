@@ -392,6 +392,7 @@ def _build_analytics_summary(row: Dict[str, str]) -> Dict[str, Any]:
         "wa_connection": safe_str(row.get("10_Conversion_Hooks_Used_WhatsApp_Connection_Used")),
         "video_demo": safe_str(row.get("10_Conversion_Hooks_Used_Video_Demo_Used")),
         "probing_why": safe_str(row.get("11_Probing_Questions_Why_Buying_Asked")),
+        "probing_whom": safe_str(row.get("11_Probing_Questions_Whom_For_Asked")),
         "proactive": safe_str(row.get("15_Agent_Evaluation_Agent_Nature")),
         
         # RELAX Scores (Raw for averaging)

@@ -1,0 +1,56 @@
+{
+  "Mumbai": [
+    "COCO ANDHERI",
+    "COCO BANDRA",
+    "COCO GHATKOPAR",
+    "COCO KANDIVALI",
+    "COCO KEMPS",
+    "COCO MULUND"
+  ],
+  "Gurugram": [
+    "COCO AIPL MALL GURUGRAM",
+    "COCO JMD REGENT ARCADE"
+  ],
+  "Chennai": [
+    "COCO ADYAR",
+    "COCO ANNA NAGAR",
+    "COCO ECR CHENNAI",
+    "COCO NUNGAMBAKKAM",
+    "COCO PERAMBUR",
+    "COCO VELACHERRY"
+  ],
+  "Bengaluru": [
+    "COCO AIRPORT ROAD BLR",
+    "COCO BANASWADI",
+    "COCO BANNERGHATA",
+    "COCO BEL ROAD",
+    "COCO HSR",
+    "COCO INDIRANAGAR",
+    "COCO JAYANAGAR",
+    "COCO KANAKAPURA ROAD",
+    "COCO MARATHAHALLI",
+    "COCO WHITEFIELD"
+  ],
+  "Ernakulam": [
+    "COCO COCHIN"
+  ],
+  "Noida": [
+    "COCO NOIDA 104"
+  ],
+  "Kochi": [
+    "COCO MG ROAD COCHIN"
+  ],
+  "Hyderabad": [
+    "COCO BANJARA HILLS",
+    "COCO KONDAPUR",
+    "COCO RAIDURGAM",
+    "COCO VANASTHALIPURAM"
+  ],
+  "New delhi": [
+    "COCO KIRTI NAGAR",
+    "COCO SHANKAR VIHAR"
+  ],
+  "Greater noida": [
+    "COCO GAUR CITY MALL"
+  ]
+}

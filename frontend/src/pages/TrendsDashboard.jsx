@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Activity, Calendar, SlidersHorizontal, MapPin, Target, ShoppingCart, TrendingDown, Check, ChevronDown, Download } from 'lucide-react';
 import { fetchAnalyticsData, parseDate } from '../utils/api';
 import * as XLSX from 'xlsx';
+import cityStoreMapping from '../utils/city_store_mapping.json';
 
 const KPI_OPTIONS = [
     { id: 'leads', label: '# of Leads' },
@@ -47,6 +48,34 @@ export default function TrendsDashboard() {
     const [selectedKPIs, setSelectedKPIs] = useState(DEFAULT_KPIS);
     const [startDate, setStartDate] = useState('2025-03-02');
     const [endDate, setEndDate] = useState('');
+    const [cityFilter, setCityFilter] = useState([]);
+    const [storeFilter, setStoreFilter] = useState([]);
+
+    const availableStores = useMemo(() => {
+        let stores = [];
+        if (cityFilter.length === 0) {
+            // All stores if no city selected
+            Object.values(cityStoreMapping).forEach(sList => {
+                stores = stores.concat(sList);
+            });
+        } else {
+            cityFilter.forEach(city => {
+                if (cityStoreMapping[city]) {
+                    stores = stores.concat(cityStoreMapping[city]);
+                }
+            });
+        }
+        return [...new Set(stores)].sort();
+    }, [cityFilter]);
+
+    useEffect(() => {
+        if (cityFilter.length > 0 && storeFilter.length > 0) {
+            const validStores = storeFilter.filter(s => availableStores.includes(s));
+            if (validStores.length !== storeFilter.length) {
+                setStoreFilter(validStores);
+            }
+        }
+    }, [availableStores, cityFilter, storeFilter]);
 
     useEffect(() => {
         fetchAnalyticsData()
@@ -61,7 +90,7 @@ export default function TrendsDashboard() {
     const processTrendData = useMemo(() => {
         let validReports = [];
 
-        // Pre-filter reports by Date 
+        // Pre-filter reports by Date and Filters
         data.reports.forEach(r => {
             const d = parseDate(r.call_date);
             if (!d) return;
@@ -77,13 +106,16 @@ export default function TrendsDashboard() {
                 e.setHours(23,59,59,999);
                 if (dTime > e.getTime()) return;
             }
+
+            if (cityFilter.length > 0 && !cityFilter.includes(r.city)) return;
+            if (storeFilter.length > 0 && !storeFilter.includes(r.store_name)) return;
             
             // Map each report to a week
             const monday = getMondayOfWeek(d);
             const weekTs = monday.getTime();
             const weekStr = formatDateToWeekStr(monday);
             
-            validReports.push({ ...r, _weekTs: weekTs, _weekStr: weekStr });
+            validReports.push({ ...r, _weekTs: weekTs, _weekStr: weekStr, _overall: 'Overall' });
         });
 
         // Collect all distinct weeks, sorted chronologically
@@ -146,13 +178,14 @@ export default function TrendsDashboard() {
 
         return {
             weeks: sortedWeeks,
+            overallData: aggregateToMatrix('_overall'),
             storeData: aggregateToMatrix('store_name'),
             cityData: aggregateToMatrix('city'),
             categoryData: aggregateToMatrix('product_category'),
             barrierData: aggregateToMatrix('purchase_barrier')
         };
 
-    }, [data.reports, startDate, endDate]);
+    }, [data.reports, startDate, endDate, cityFilter, storeFilter]);
 
     const toggleKPI = (id) => {
         if (selectedKPIs.includes(id)) {
@@ -276,8 +309,22 @@ export default function TrendsDashboard() {
                         </div>
                     </Dropdown>
 
+                    <FilterSelect 
+                        label="City" 
+                        value={cityFilter} 
+                        onChange={setCityFilter} 
+                        options={Object.keys(cityStoreMapping).sort()} 
+                    />
+                    
+                    <FilterSelect 
+                        label="Store" 
+                        value={storeFilter} 
+                        onChange={setStoreFilter} 
+                        options={availableStores} 
+                    />
+
                     <button 
-                        onClick={() => { setStartDate(''); setEndDate(''); setSelectedKPIs(DEFAULT_KPIS); }}
+                        onClick={() => { setStartDate(''); setEndDate(''); setSelectedKPIs(DEFAULT_KPIS); setCityFilter([]); setStoreFilter([]); }}
                         className="ml-auto text-xs font-bold text-red-500 border border-red-100 bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors"
                     >
                         Reset Defaults
@@ -286,6 +333,16 @@ export default function TrendsDashboard() {
 
                 {/* Data Grids */}
                 <div className="flex flex-col gap-12">
+                    <TrendGrid 
+                      title="Overall Trends" 
+                      icon={<Activity className="w-5 h-5" />} 
+                      color="indigo"
+                      dataModel={processTrendData.overallData} 
+                      weeks={processTrendData.weeks} 
+                      kpis={orderedKPIs} 
+                      formatMetric={formatMetric} 
+                    />
+
                     <TrendGrid 
                       title="City Trends" 
                       icon={<MapPin className="w-5 h-5" />} 
@@ -327,6 +384,60 @@ export default function TrendsDashboard() {
                     />
                 </div>
             </div>
+        </div>
+    );
+}
+
+function FilterSelect({ label, value, onChange, options }) {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    const toggleOption = (opt) => {
+        if (value.includes(opt)) {
+            onChange(value.filter(v => v !== opt));
+        } else {
+            onChange([...value, opt]);
+        }
+    };
+    
+    const displayCount = value.length === 0 ? 'ALL' : `${value.length} Sel`;
+
+    return (
+        <div className="flex flex-col gap-1.5 relative group">
+            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest px-1">{label}</span>
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="bg-slate-50 border border-slate-100 text-[11px] font-bold text-slate-700 px-4 py-2.5 flex items-center justify-between gap-3 min-w-[120px] rounded-xl hover:bg-white focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all outline-none"
+            >
+                <span>{displayCount}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            
+            {isOpen && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+                    <div className="absolute top-[100%] left-0 mt-2 w-56 bg-white border border-slate-100 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] rounded-2xl z-50 py-2 max-h-64 overflow-y-auto overflow-x-hidden">
+                        {options.map(o => {
+                            if (o === 'All') return null;
+                            const isSelected = value.includes(o);
+                            return (
+                                <button 
+                                    key={o} 
+                                    onClick={() => toggleOption(o)}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-50/80 flex items-center gap-3 transition-colors group/item"
+                                >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30' : 'bg-slate-50 border-slate-200 group-hover/item:border-indigo-300'}`}>
+                                        {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-slate-900' : 'text-slate-500'} break-words whitespace-normal`}>{o}</span>
+                                </button>
+                            );
+                        })}
+                        {options.length === 0 && (
+                            <div className="px-4 py-2 text-xs text-slate-400 font-bold uppercase tracking-widest text-center">No Options</div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 }

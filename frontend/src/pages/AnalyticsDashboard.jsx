@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { fetchAnalyticsData, parseDate } from '../utils/api';
+import cityStoreMapping from '../utils/city_store_mapping.json';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export default function AnalyticsDashboard() {
   const [error, setError] = useState('');
 
   // Local Filters
+  const [cityFilter, setCityFilter] = useState([]);
   const [storeFilter, setStoreFilter] = useState([]);
   const [callTypeFilter, setCallTypeFilter] = useState([]);
   const [intentFilter, setIntentFilter] = useState([]);
@@ -44,9 +46,30 @@ export default function AnalyticsDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  const availableStores = useMemo(() => {
+    if (cityFilter.length === 0) return data.filters.stores || [];
+    let stores = [];
+    cityFilter.forEach(city => {
+        if (cityStoreMapping[city]) {
+            stores = stores.concat(cityStoreMapping[city]);
+        }
+    });
+    return [...new Set(stores)].sort();
+  }, [cityFilter, data.filters.stores]);
+
+  useEffect(() => {
+    if (cityFilter.length > 0 && storeFilter.length > 0) {
+        const validStores = storeFilter.filter(s => availableStores.includes(s));
+        if (validStores.length !== storeFilter.length) {
+            setStoreFilter(validStores);
+        }
+    }
+  }, [availableStores, cityFilter, storeFilter]);
+
   const filteredCalls = useMemo(() => {
     let result = data.reports || [];
 
+    if (cityFilter.length > 0) result = result.filter(r => cityFilter.includes(r.city));
     if (storeFilter.length > 0) result = result.filter(r => storeFilter.includes(r.store_name));
     if (callTypeFilter.length > 0) result = result.filter(r => callTypeFilter.includes(r.call_type));
     if (intentFilter.length > 0) result = result.filter(r => intentFilter.includes(r.intent_rating));
@@ -101,7 +124,7 @@ export default function AnalyticsDashboard() {
     }
 
     return result;
-  }, [data.reports, storeFilter, callTypeFilter, intentFilter, visitFilter, npsAgentFilter, npsBrandFilter, categoryFilter, startDate, endDate]);
+  }, [data.reports, cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, npsAgentFilter, npsBrandFilter, categoryFilter, startDate, endDate]);
 
   const metrics = useMemo(() => {
     const total = filteredCalls.length;
@@ -129,6 +152,32 @@ export default function AnalyticsDashboard() {
     const totalRevenueFormatted = formatter.format(totalRevenue);
     const revPerLeadFormatted = formatter.format(revPerLead);
     const arpuFormatted = formatter.format(arpu);
+
+    let sumAgentNps = 0;
+    let sumBrandNps = 0;
+    let storeInvCount = 0;
+    let waCount = 0;
+    let videoCount = 0;
+    let probingWhyCount = 0;
+    let probingWhomCount = 0;
+
+    filteredCalls.forEach(r => {
+        sumAgentNps += r.nps_agent || 0;
+        sumBrandNps += r.nps_brand || 0;
+        if (String(r.store_invitation).toLowerCase() === 'yes') storeInvCount++;
+        if (String(r.wa_connection).toLowerCase() === 'yes') waCount++;
+        if (String(r.video_demo).toLowerCase() === 'yes') videoCount++;
+        if (String(r.probing_why).toLowerCase() === 'yes') probingWhyCount++;
+        if (String(r.probing_whom).toLowerCase() === 'yes') probingWhomCount++;
+    });
+
+    const avgNpsAgent = total > 0 ? Math.round((sumAgentNps / total) * 10) + "%" : "0%";
+    const avgNpsBrand = total > 0 ? Math.round((sumBrandNps / total) * 10) + "%" : "0%";
+    const waConnectionPerc = total > 0 ? ((waCount / total) * 100).toFixed(0) : "0";
+    const storeInvitationPerc = total > 0 ? ((storeInvCount / total) * 100).toFixed(0) : "0";
+    const probingWhyPerc = total > 0 ? ((probingWhyCount / total) * 100).toFixed(0) : "0";
+    const probingWhomPerc = total > 0 ? ((probingWhomCount / total) * 100).toFixed(0) : "0";
+    const videoDemoPerc = total > 0 ? ((videoCount / total) * 100).toFixed(0) : "0";
 
     // Bad calls: High Intent but Low Agent NPS/CX
     // Let's define Low as MEDIUM or LOW (anything not HIGH)
@@ -327,7 +376,14 @@ export default function AnalyticsDashboard() {
         conversionPercent, 
         totalRevenueFormatted, 
         revPerLeadFormatted,
-        arpuFormatted 
+        arpuFormatted,
+        avgNpsAgent,
+        avgNpsBrand,
+        waConnectionPerc,
+        storeInvitationPerc,
+        probingWhyPerc,
+        probingWhomPerc,
+        videoDemoPerc
     };
   }, [filteredCalls]);
 
@@ -439,12 +495,19 @@ export default function AnalyticsDashboard() {
                 <BarChart2 className="w-5 h-5 text-indigo-500" />
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Filters</span>
             </div>
+
+            <FilterSelect 
+              label="City" 
+              value={cityFilter} 
+              onChange={setCityFilter} 
+              options={Object.keys(cityStoreMapping).sort()} 
+            />
             
             <FilterSelect 
               label="Store" 
               value={storeFilter} 
               onChange={setStoreFilter} 
-              options={data.filters.stores} 
+              options={availableStores} 
             />
             
             <FilterSelect 
@@ -512,7 +575,7 @@ export default function AnalyticsDashboard() {
 
             <button 
               onClick={() => {
-                setStoreFilter([]); setCallTypeFilter([]); setIntentFilter([]);
+                setCityFilter([]); setStoreFilter([]); setCallTypeFilter([]); setIntentFilter([]);
                 setVisitFilter([]); setNpsAgentFilter([]); setNpsBrandFilter([]);
                 setCategoryFilter([]); setStartDate(''); setEndDate('');
               }}
@@ -559,6 +622,17 @@ export default function AnalyticsDashboard() {
               color="emerald" 
               icon={<Activity />} 
             />
+        </div>
+
+        {/* Secondary KPI Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-12 opacity-90 scale-[0.98] origin-top">
+            <SecondaryKpiCard label="AVG NPS (Brand)" value={metrics.avgNpsBrand} />
+            <SecondaryKpiCard label="AVG NPS (Agent)" value={metrics.avgNpsAgent} />
+            <SecondaryKpiCard label="WA Connection" value={`${metrics.waConnectionPerc}%`} />
+            <SecondaryKpiCard label="Store Invitation" value={`${metrics.storeInvitationPerc}%`} />
+            <SecondaryKpiCard label="Probing Why" value={`${metrics.probingWhyPerc}%`} />
+            <SecondaryKpiCard label="Probing Whom" value={`${metrics.probingWhomPerc}%`} />
+            <SecondaryKpiCard label="Video Demo" value={`${metrics.videoDemoPerc}%`} />
         </div>
 
         {/* Matrix Section */}
@@ -616,9 +690,9 @@ export default function AnalyticsDashboard() {
                     <Download className="w-3.5 h-3.5" /> Export
                 </button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] w-full custom-scrollbar border-t border-slate-100 relative">
+                <table className="w-full text-left min-w-max">
+                    <thead className="bg-slate-50 sticky top-0 z-30 shadow-sm">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">City</th>
                             <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
@@ -694,9 +768,9 @@ export default function AnalyticsDashboard() {
                     <Download className="w-3.5 h-3.5" /> Export
                 </button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] w-full custom-scrollbar border-t border-slate-100 relative">
+                <table className="w-full text-left min-w-max">
+                    <thead className="bg-slate-50 sticky top-0 z-30 shadow-sm">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Store Details</th>
                             <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
@@ -773,9 +847,9 @@ export default function AnalyticsDashboard() {
                     <Download className="w-3.5 h-3.5" /> Export
                 </button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] w-full custom-scrollbar border-t border-slate-100 relative">
+                <table className="w-full text-left min-w-max">
+                    <thead className="bg-slate-50 sticky top-0 z-30 shadow-sm">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Income/Price Group</th>
                             <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
@@ -852,9 +926,9 @@ export default function AnalyticsDashboard() {
                     <Download className="w-3.5 h-3.5" /> Export
                 </button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] w-full custom-scrollbar border-t border-slate-100 relative">
+                <table className="w-full text-left min-w-max">
+                    <thead className="bg-slate-50 sticky top-0 z-30 shadow-sm">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Category</th>
                             <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
@@ -930,9 +1004,9 @@ export default function AnalyticsDashboard() {
                     <Download className="w-3.5 h-3.5" /> Export
                 </button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-slate-50/50">
+            <div className="overflow-x-auto overflow-y-auto max-h-[70vh] w-full custom-scrollbar border-t border-slate-100 relative">
+                <table className="w-full text-left min-w-max">
+                    <thead className="bg-slate-50 sticky top-0 z-30 shadow-sm">
                         <tr>
                             <th className="p-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Barrier</th>
                             <th className="p-6 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest"># of Leads</th>
@@ -1106,4 +1180,13 @@ function getScoreClass(score) {
     if (s >= 7) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (s >= 5) return 'bg-amber-50 text-amber-700 border-amber-200';
     return 'bg-rose-50 text-rose-700 border-rose-200';
+}
+
+function SecondaryKpiCard({ label, value }) {
+    return (
+        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center text-center">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-snug mb-1">{label}</span>
+            <span className="text-xl font-black text-slate-800" style={{ fontFamily: "'Fraunces', serif" }}>{value}</span>
+        </div>
+    );
 }
