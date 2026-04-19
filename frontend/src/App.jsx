@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import TrendsDashboard from './pages/TrendsDashboard';
 import InsightsDashboard from './pages/InsightsDashboard';
@@ -17,9 +17,25 @@ const PublicOnlyRoute = ({ children }) => {
   return isAuthenticated ? <Navigate to="/" replace /> : children;
 };
 
+const SessionChecker = ({ children }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    // If not authenticated and not on login page, redirect to login
+    if (!isAuthenticated && location.pathname !== '/login') {
+      navigate('/login', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+  
+  return children;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
+      <SessionChecker>
       <Routes>
         <Route
           path="/login"
@@ -71,6 +87,7 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </SessionChecker>
     </BrowserRouter>
   );
 }
