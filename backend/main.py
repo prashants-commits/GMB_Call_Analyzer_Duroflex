@@ -32,6 +32,10 @@ class InsightRequest(BaseModel):
     clean_numbers: List[str]
     segment_description: str = "All segments"
     date_range: str = "Full range"
+    custom_question: Optional[str] = ""
+    clean_numbers_b: Optional[List[str]] = None
+    segment_description_b: Optional[str] = None
+    date_range_b: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -93,19 +97,37 @@ async def generate_insights_endpoint(request: InsightRequest):
         )
 
     # Extract the specific columns for Gemini
-    call_data = store.get_insight_columns(request.clean_numbers)
+    call_data_a = store.get_insight_columns(request.clean_numbers)
 
-    if not call_data:
+    if not call_data_a:
         raise HTTPException(
             status_code=404,
-            detail="No matching call data found for the provided IDs."
+            detail="No matching call data found for Dataset A."
         )
+
+    call_data_b = None
+    if request.clean_numbers_b is not None:
+        if len(request.clean_numbers_b) > 100:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 100 calls allowed for Dataset B. Please narrow your filters."
+            )
+        if len(request.clean_numbers_b) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No calls selected for Dataset B. Please adjust your filters."
+            )
+        call_data_b = store.get_insight_columns(request.clean_numbers_b)
 
     try:
         result = await generate_insights(
-            call_data=call_data,
+            call_data=call_data_a,
             segment_description=request.segment_description,
-            date_range=request.date_range
+            date_range=request.date_range,
+            custom_question=request.custom_question,
+            call_data_b=call_data_b,
+            segment_description_b=request.segment_description_b,
+            date_range_b=request.date_range_b
         )
         return {"status": "success", "report": result}
     except ValueError as e:

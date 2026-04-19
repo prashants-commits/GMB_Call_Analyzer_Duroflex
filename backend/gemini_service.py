@@ -12,63 +12,90 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-PROMPT_TEMPLATE = """Context: This is data from analysing {n_calls} inbound sales calls at Duroflex.
-Segment applied: {segment_description}
-Date range: {date_range}
-
-Below is the call-level data in JSON format:
-{call_data_json}
-
-Prepare an Executive-level, simple and effective Report for the CEO and CGO containing:
-
-1. **Top 3 Good Aspects about the Brand** — with brief supporting evidence from the calls
-2. **Top 3 Bad Aspects about the Brand** — with brief supporting evidence from the calls
-3. **Top 3 Good Aspects about the Store & Staff** — with brief supporting evidence from the calls
-4. **Top 3 Bad Aspects about the Store & Staff** — with brief supporting evidence from the calls
-5. **Top 3 to 5 Overall Next Steps** to improve Business and Customer Experience — actionable recommendations
-
-Format your response as a JSON object with this exact structure:
-{{
-  "brand_good": [{{"title": "...", "detail": "..."}}, ...],
-  "brand_bad": [{{"title": "...", "detail": "..."}}, ...],
-  "store_good": [{{"title": "...", "detail": "..."}}, ...],
-  "store_bad": [{{"title": "...", "detail": "..."}}, ...],
-  "next_steps": [{{"title": "...", "detail": "..."}}, ...]
-}}
-
-Return ONLY valid JSON. No markdown fences, no commentary outside the JSON."""
-
-
-async def generate_insights(call_data: list, segment_description: str, date_range: str) -> dict:
+async def generate_insights(call_data: list, segment_description: str, date_range: str, custom_question: str = "",
+                            call_data_b: list = None, segment_description_b: str = None, date_range_b: str = None) -> dict:
     """
     Send call data to Gemini and return a structured insights report.
-    
-    Args:
-        call_data: List of dicts, each containing the specified columns for one call.
-        segment_description: Human-readable description of the applied filters.
-        date_range: Human-readable date range string.
-    
-    Returns:
-        Parsed JSON dict with brand_good, brand_bad, store_good, store_bad, next_steps.
-    
-    Raises:
-        ValueError: If API key is missing or Gemini returns unparseable output.
+    If call_data_b is provided, generates a Comparison Report.
     """
     if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY_HERE":
         raise ValueError("GEMINI_API_KEY is not configured. Please set it in backend/.env")
 
     client = genai.Client(api_key=GEMINI_API_KEY)
 
-    prompt = PROMPT_TEMPLATE.format(
-        n_calls=len(call_data),
-        segment_description=segment_description,
-        date_range=date_range,
-        call_data_json=json.dumps(call_data, ensure_ascii=False, indent=2)
-    )
+    if call_data_b is not None:
+        base_prompt = f"""Context: This is data from analysing inbound sales calls at Duroflex. You are being asked to compare two distinct segments of calls.
+
+Dataset A (Segment: {segment_description} | Dates: {date_range}) - {len(call_data)} calls
+Below is the call-level data for Dataset A in JSON format:
+{json.dumps(call_data, ensure_ascii=False, indent=2)}
+
+Dataset B (Segment: {segment_description_b} | Dates: {date_range_b}) - {len(call_data_b)} calls
+Below is the call-level data for Dataset B in JSON format:
+{json.dumps(call_data_b, ensure_ascii=False, indent=2)}
+
+You are an expert Data Analyst presenting to the CEO, CGO, and CSO. Your tone should be highly professional, structural, business-friendly, and actionable.
+
+Based ONLY on the provided call data, prepare an Executive Comparison Insights Report. Your goal is to highlight the KEY DIFFERENCES, advantages, or relative weaknesses between Dataset A and Dataset B. 
+
+Your report must contain:
+1. **Top 3 Good Aspects about the Brand (Comparison)** — contrasting A vs B with brief supporting evidence.
+2. **Top 3 Bad Aspects about the Brand (Comparison)** — contrasting A vs B with brief supporting evidence.
+3. **Top 3 Good Aspects about the Store & Staff (Comparison)** — contrasting A vs B with brief supporting evidence.
+4. **Top 3 Bad Aspects about the Store & Staff (Comparison)** — contrasting A vs B with brief supporting evidence.
+5. **Top 3 to 5 Overall Next Steps** to improve Business and Customer Experience based on these comparisons.
+"""
+    else:
+        base_prompt = f"""Context: This is data from analysing {len(call_data)} inbound sales calls at Duroflex.
+Segment applied: {segment_description}
+Date range: {date_range}
+
+Below is the call-level data in JSON format:
+{json.dumps(call_data, ensure_ascii=False, indent=2)}
+
+You are an expert Data Analyst presenting to the CEO, CGO, and CSO. Your tone should be highly professional, structural, business-friendly, and actionable.
+
+Based ONLY on the provided call data, prepare an Executive Insights Report containing:
+
+1. **Top 3 Good Aspects about the Brand** — with brief supporting evidence from the calls
+2. **Top 3 Bad Aspects about the Brand** — with brief supporting evidence from the calls
+3. **Top 3 Good Aspects about the Store & Staff** — with brief supporting evidence from the calls
+4. **Top 3 Bad Aspects about the Store & Staff** — with brief supporting evidence from the calls
+5. **Top 3 to 5 Overall Next Steps** to improve Business and Customer Experience — actionable recommendations
+"""
+
+    if custom_question and custom_question.strip():
+        if call_data_b is not None:
+            base_prompt += f"6. **Custom Request/Question:** Please answer this question by contrasting Dataset A against Dataset B: {custom_question.strip()}\n\n"
+        else:
+            base_prompt += f"6. **Custom Request/Question:** {custom_question.strip()}\n\n"
+        base_prompt += """Format your response as a JSON object with this exact structure:
+{
+  "brand_good": [{"title": "...", "detail": "..."}],
+  "brand_bad": [{"title": "...", "detail": "..."}],
+  "store_good": [{"title": "...", "detail": "..."}],
+  "store_bad": [{"title": "...", "detail": "..."}],
+  "next_steps": [{"title": "...", "detail": "..."}],
+  "custom_answer": {
+    "question": "...",
+    "answer_points": [{"title": "...", "detail": "..."}]
+  }
+}"""
+    else:
+        base_prompt += """Format your response as a JSON object with this exact structure:
+{
+  "brand_good": [{"title": "...", "detail": "..."}],
+  "brand_bad": [{"title": "...", "detail": "..."}],
+  "store_good": [{"title": "...", "detail": "..."}],
+  "store_bad": [{"title": "...", "detail": "..."}],
+  "next_steps": [{"title": "...", "detail": "..."}]
+}"""
+
+    base_prompt += "\n\nReturn ONLY valid JSON. No markdown fences, no commentary outside the JSON."
 
     response = client.models.generate_content(
         model="gemini-3.1-pro-preview",
-        contents=prompt
+        contents=base_prompt
     )
 
     raw_text = response.text.strip()

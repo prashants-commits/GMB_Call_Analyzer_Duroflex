@@ -72,15 +72,24 @@ export async function fetchAnalyticsData() {
   return res.json();
 }
 
-export async function generateInsightsReport(cleanNumbers, segmentDescription, dateRange) {
+export async function generateInsightsReport(cleanNumbers, segmentDescription, dateRange, customQuestion, cleanNumbersB, segmentDescriptionB, dateRangeB) {
+  const payload = {
+    clean_numbers: cleanNumbers,
+    segment_description: segmentDescription,
+    date_range: dateRange,
+    custom_question: customQuestion
+  };
+  
+  if (cleanNumbersB) {
+    payload.clean_numbers_b = cleanNumbersB;
+    payload.segment_description_b = segmentDescriptionB;
+    payload.date_range_b = dateRangeB;
+  }
+
   const res = await fetch(apiUrl('/api/generate-insights'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      clean_numbers: cleanNumbers,
-      segment_description: segmentDescription,
-      date_range: dateRange
-    })
+    body: JSON.stringify(payload)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unknown error' }));

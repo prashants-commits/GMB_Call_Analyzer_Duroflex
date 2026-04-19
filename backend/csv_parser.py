@@ -487,6 +487,8 @@ class CallDataStore:
             ("brand_bad", "Brand Bad"),
             ("purchase_barrier_detail", "Purchase Barrier Detail"),
             ("agent_learnings", "Agent Learnings"),
+            ("store_visit_barrier", "Store Visit Barrier"),
+            ("store_visit_barrier_detail", "Store Visit Barrier Detail"),
         ]
 
         results = []
@@ -495,6 +497,10 @@ class CallDataStore:
         for cn in clean_numbers:
             detail = self._details.get(cn)
             if not detail:
+                continue
+
+            call_type = detail.get("identity", {}).get("call_type", "")
+            if call_type not in ("PRE_PURCHASE (Pre Store Visit)", "PRE_PURCHASE (Post Store Visit)"):
                 continue
 
             row = {}
@@ -513,6 +519,8 @@ class CallDataStore:
             row["Brand Good"] = detail.get("experience", {}).get("brand", {}).get("good", "")
             row["Brand Bad"] = detail.get("experience", {}).get("brand", {}).get("bad", "")
             row["Purchase Barrier Detail"] = detail.get("barriers", {}).get("purchase", {}).get("detail", "")
+            row["Store Visit Barrier"] = detail.get("barriers", {}).get("store_visit", {}).get("type", "")
+            row["Store Visit Barrier Detail"] = detail.get("barriers", {}).get("store_visit", {}).get("detail", "")
             # Agent Learnings is in the raw CSV but not in _build_call_detail — read from raw rows
             row["Agent Learnings"] = self._raw_rows.get(cn, {}).get("17_Agent_Learnings", "")
 
