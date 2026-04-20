@@ -10,7 +10,9 @@ from google import genai
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+##GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY="AIzaSyD1CKkkfBpdJCjvfNXIV0fAtPs2lz5Or1A"
+
 
 async def generate_insights(call_data: list, segment_description: str, date_range: str, custom_question: str = "",
                             call_data_b: list = None, segment_description_b: str = None, date_range_b: str = None) -> dict:
