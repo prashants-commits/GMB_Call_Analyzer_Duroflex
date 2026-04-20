@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate } from '../utils/api';
 import { Users, Target, DollarSign, Activity } from 'lucide-react';
 import ScoreBadge from '../components/ScoreBadge';
+import cityStoreMapping from '../utils/city_store_mapping.json';
 
 export default function CallListPage() {
   const navigate = useNavigate();
@@ -145,6 +146,28 @@ export default function CallListPage() {
   const categoriesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.product_category).filter(Boolean).sort())], [data.calls]);
   const barriersList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.purchase_barrier).filter(Boolean).sort())], [data.calls]);
 
+  const availableStores = useMemo(() => {
+    if (cityFilter.length === 0) {
+      return data.filters?.stores || [];
+    }
+    let stores = [];
+    cityFilter.forEach(city => {
+        if (cityStoreMapping[city]) {
+            stores = stores.concat(cityStoreMapping[city]);
+        }
+    });
+    return [...new Set(stores)].sort();
+  }, [cityFilter, data.filters?.stores]);
+
+  useEffect(() => {
+      if (cityFilter.length > 0 && storeFilter.length > 0) {
+          const validStores = storeFilter.filter(s => availableStores.includes(s));
+          if (validStores.length !== storeFilter.length) {
+              setStoreFilter(validStores);
+          }
+      }
+  }, [availableStores, cityFilter, storeFilter]);
+
   const resetFilters = () => {
     setSearch(''); setStoreFilter([]); setIntentFilter([]); setExpFilter([]); setFunnelFilter([]);
     setCityFilter([]); setPriceFilter([]); setCategoryFilter([]); setBarrierFilter([]);
@@ -253,7 +276,7 @@ export default function CallListPage() {
 
           <div className="flex flex-wrap gap-3">
               <FilterSelect value={storeFilter} onChange={setStoreFilter}
-                options={['All', ...(data.filters?.stores || [])]} prefix="Store" />
+                options={['All', ...availableStores]} prefix="Store" />
 
               <FilterSelect value={intentFilter} onChange={setIntentFilter}
                 options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Intent" />

@@ -440,6 +440,10 @@ class CallDataStore:
                 if not clean_number:
                     continue
                 
+                call_type = safe_str(row.get("Call Type"))
+                if call_type not in ("PRE_PURCHASE (Pre Store Visit)", "PRE_PURCHASE (Post Store Visit)"):
+                    continue
+                
                 # Update row with corrected date for the builders
                 row["CallDateTime"] = cd
 

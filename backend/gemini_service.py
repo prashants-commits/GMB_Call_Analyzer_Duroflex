@@ -36,14 +36,17 @@ Below is the call-level data for Dataset B in JSON format:
 
 You are an expert Data Analyst presenting to the CEO, CGO, and CSO. Your tone should be highly professional, structural, business-friendly, and actionable.
 
-Based ONLY on the provided call data, prepare an Executive Comparison Insights Report. Your goal is to highlight the KEY DIFFERENCES, advantages, or relative weaknesses between Dataset A and Dataset B. 
+Based ONLY on the provided call data, prepare an Executive Comparison Insights Report by applying a First Principles diagnostic approach:
+First, isolate the core parameters driving Brand Perception (e.g., product quality, pricing, trust) and Store/Staff Experience (e.g., knowledge, proactive probing, follow-up).
+Second, evaluate and contrast Dataset A vs Dataset B across these exact parameters.
+Third, identify the root causes actively stopping revenue growth in each dataset.
 
-Your report must contain:
-1. **Top 3 Good Aspects about the Brand (Comparison)** — contrasting A vs B with brief supporting evidence.
-2. **Top 3 Bad Aspects about the Brand (Comparison)** — contrasting A vs B with brief supporting evidence.
-3. **Top 3 Good Aspects about the Store & Staff (Comparison)** — contrasting A vs B with brief supporting evidence.
-4. **Top 3 Bad Aspects about the Store & Staff (Comparison)** — contrasting A vs B with brief supporting evidence.
-5. **Top 3 to 5 Overall Next Steps** to improve Business and Customer Experience based on these comparisons.
+Your report must populate the following sections:
+1. **Brand Analysis (Comparison)** — Contrast A vs B on isolated Brand parameters. Provide the Top 3 advantages/strengths.
+2. **Brand Vulnerabilities** — Contrast A vs B on isolated Brand parameters. Provide the Top 3 weaknesses.
+3. **Store & Staff Analysis (Comparison)** — Contrast A vs B on isolated Staff parameters (probing, knowledge, etc.). Provide the Top 3 advantages/strengths.
+4. **Store & Staff Vulnerabilities** — Contrast A vs B on isolated Staff parameters. Provide the Top 3 weaknesses.
+5. **Revenue Blockers & Next Steps** — First, explicitly state what is stopping revenue growth in Dataset A vs Dataset B. Then, provide 3 to 5 actionable recommendations to overcome these exact blockers.
 """
     else:
         base_prompt = f"""Context: This is data from analysing {len(call_data)} inbound sales calls at Duroflex.

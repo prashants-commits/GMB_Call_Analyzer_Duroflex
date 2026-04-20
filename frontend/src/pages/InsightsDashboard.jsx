@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download } from 'lucide-react';
 import { fetchAnalyticsData, parseDate, generateInsightsReport } from '../utils/api';
+import cityStoreMapping from '../utils/city_store_mapping.json';
 
 export default function InsightsDashboard() {
     const navigate = useNavigate();
@@ -65,6 +66,46 @@ export default function InsightsDashboard() {
             barriers: [...barriers].sort()
         };
     }, [data.reports]);
+
+    const availableStores = useMemo(() => {
+        if (selectedCities.length === 0) return filterOptions.stores;
+        let stores = [];
+        selectedCities.forEach(city => {
+            if (cityStoreMapping[city]) {
+                stores = stores.concat(cityStoreMapping[city]);
+            }
+        });
+        return [...new Set(stores)].sort();
+    }, [selectedCities, filterOptions.stores]);
+
+    const availableStoresB = useMemo(() => {
+        if (selectedCitiesB.length === 0) return filterOptions.stores;
+        let stores = [];
+        selectedCitiesB.forEach(city => {
+            if (cityStoreMapping[city]) {
+                stores = stores.concat(cityStoreMapping[city]);
+            }
+        });
+        return [...new Set(stores)].sort();
+    }, [selectedCitiesB, filterOptions.stores]);
+
+    useEffect(() => {
+        if (selectedCities.length > 0 && selectedStores.length > 0) {
+            const validStores = selectedStores.filter(s => availableStores.includes(s));
+            if (validStores.length !== selectedStores.length) {
+                setSelectedStores(validStores);
+            }
+        }
+    }, [availableStores, selectedCities, selectedStores]);
+
+    useEffect(() => {
+        if (selectedCitiesB.length > 0 && selectedStoresB.length > 0) {
+            const validStores = selectedStoresB.filter(s => availableStoresB.includes(s));
+            if (validStores.length !== selectedStoresB.length) {
+                setSelectedStoresB(validStores);
+            }
+        }
+    }, [availableStoresB, selectedCitiesB, selectedStoresB]);
 
     // Filtered calls Set A
     const filteredCalls = useMemo(() => {
@@ -245,7 +286,7 @@ export default function InsightsDashboard() {
                         <FilterDropdown
                             label="Store"
                             icon={<Building2 className="w-4 h-4 text-indigo-500" />}
-                            options={filterOptions.stores}
+                            options={availableStores}
                             selected={selectedStores}
                             setSelected={setSelectedStores}
                         />
@@ -331,7 +372,7 @@ export default function InsightsDashboard() {
                             <FilterDropdown
                                 label="Store"
                                 icon={<Building2 className="w-4 h-4 text-indigo-500" />}
-                                options={filterOptions.stores}
+                                options={availableStoresB}
                                 selected={selectedStoresB}
                                 setSelected={setSelectedStoresB}
                             />
