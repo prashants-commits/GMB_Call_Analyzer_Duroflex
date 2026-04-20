@@ -469,6 +469,9 @@ class CallDataStore:
     def get_unique_cities(self) -> List[str]:
         return sorted(set(s["city"] for s in self._summaries if s["city"]))
 
+    def get_raw_rows(self, clean_numbers: List[str]) -> List[Dict[str, str]]:
+        return [self._raw_rows[cn] for cn in clean_numbers if cn in self._raw_rows]
+
     def get_insight_columns(self, clean_numbers: List[str]) -> List[Dict[str, Any]]:
         """Return the specific columns needed for Gemini insight generation.
         

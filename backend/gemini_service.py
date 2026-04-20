@@ -10,20 +10,20 @@ from google import genai
 
 load_dotenv()
 
-##GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_API_KEY="AIzaSyD1CKkkfBpdJCjvfNXIV0fAtPs2lz5Or1A"
-
-
 async def generate_insights(call_data: list, segment_description: str, date_range: str, custom_question: str = "",
                             call_data_b: list = None, segment_description_b: str = None, date_range_b: str = None) -> dict:
     """
     Send call data to Gemini and return a structured insights report.
     If call_data_b is provided, generates a Comparison Report.
     """
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY_HERE":
-        raise ValueError("GEMINI_API_KEY is not configured. Please set it in backend/.env")
+    # Reload dotenv to catch any changes made while the server is running
+    load_dotenv(override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    
+    if not api_key or api_key in ["YOUR_GEMINI_API_KEY_HERE", "your-gemini-api-key-here"]:
+        raise ValueError("GEMINI_API_KEY is not configured or is invalid. Please set a valid key in backend/.env")
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=api_key)
 
     if call_data_b is not None:
         base_prompt = f"""Context: This is data from analysing inbound sales calls at Duroflex. You are being asked to compare two distinct segments of calls.

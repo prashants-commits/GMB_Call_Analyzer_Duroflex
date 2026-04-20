@@ -15,14 +15,16 @@ import {
   Download,
   Sparkles
 } from 'lucide-react';
-import { fetchAnalyticsData, parseDate } from '../utils/api';
+import { fetchAnalyticsData, parseDate, fetchExportData } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
+import * as XLSX from 'xlsx';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState({ reports: [], filters: { stores: [], product_categories: [] } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   // Local Filters
   const [cityFilter, setCityFilter] = useState([]);
@@ -411,6 +413,25 @@ export default function AnalyticsDashboard() {
       document.body.removeChild(link);
   };
 
+  const handleExportSelectedCalls = async () => {
+    if (filteredCalls.length === 0) return;
+    setExporting(true);
+    try {
+      const cleanNumbers = filteredCalls.map(c => c.clean_number);
+      const res = await fetchExportData(cleanNumbers);
+      
+      const ws = XLSX.utils.json_to_sheet(res.data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Selected Calls");
+      XLSX.writeFile(wb, "Selected_Calls.xlsx");
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export calls.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const exportTableData = (filename, pkName, dataArray, pkField) => {
       const headers = [pkName, '# of Leads', 'Revenue per Lead', 'Conversion %', 'ARPU', '% Bad Calls', 'Avg NPS (Agent)', 'Avg NPS (Brand)', 'Store Invitation %', 'WA Connection %', 'Video Demo %', 'Probing - Why %', 'ProActive %'];
       
@@ -482,10 +503,22 @@ export default function AnalyticsDashboard() {
                     </div>
                     <span className="text-lg font-black leading-none">View KPI Trends</span>
                 </button>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Calls</span>
-                    <span className="text-2xl font-black text-indigo-600 leading-none mt-1">{filteredCalls.length}</span>
-                </div>
+                <button
+                    onClick={handleExportSelectedCalls}
+                    disabled={exporting || filteredCalls.length === 0}
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-start hover:border-indigo-300 hover:shadow-md transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Download Selected Calls (.xlsx)"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-indigo-500 transition-colors">Selected Calls</span>
+                        {exporting ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-500"></div>
+                        ) : (
+                            <Download className="w-3 h-3 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                        )}
+                    </div>
+                    <span className="text-2xl font-black text-indigo-600 leading-none mt-1 group-hover:scale-105 transform origin-left transition-transform">{filteredCalls.length}</span>
+                </button>
             </div>
         </div>
 

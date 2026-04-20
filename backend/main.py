@@ -38,6 +38,15 @@ class InsightRequest(BaseModel):
     date_range_b: Optional[str] = None
 
 
+class ExportRequest(BaseModel):
+    clean_numbers: List[str]
+    date_range: str = "Full range"
+    custom_question: Optional[str] = ""
+    clean_numbers_b: Optional[List[str]] = None
+    segment_description_b: Optional[str] = None
+    date_range_b: Optional[str] = None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/calls")
@@ -134,6 +143,15 @@ async def generate_insights_endpoint(request: InsightRequest):
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
+
+
+@app.post("/api/export-calls")
+def export_calls(request: ExportRequest):
+    """Return raw CSV rows for the requested calls."""
+    # Prevent giant requests if necessary, but returning JSON for 2000 calls is generally fine.
+    # ~2000 calls * ~2KB per call = ~4MB JSON response, which is reasonable.
+    rows = store.get_raw_rows(request.clean_numbers)
+    return {"data": rows}
 
 
 @app.get("/api/health")

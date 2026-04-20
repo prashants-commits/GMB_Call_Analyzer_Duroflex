@@ -72,6 +72,16 @@ export async function fetchAnalyticsData() {
   return res.json();
 }
 
+export async function fetchExportData(cleanNumbers) {
+  const res = await fetch(apiUrl('/api/export-calls'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clean_numbers: cleanNumbers })
+  });
+  if (!res.ok) throw new Error('Failed to export calls');
+  return res.json();
+}
+
 export async function generateInsightsReport(cleanNumbers, segmentDescription, dateRange, customQuestion, cleanNumbersB, segmentDescriptionB, dateRangeB) {
   const payload = {
     clean_numbers: cleanNumbers,
