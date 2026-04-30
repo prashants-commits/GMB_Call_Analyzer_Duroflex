@@ -42,9 +42,28 @@ export function formatShortDate(dateStr) {
 
 export function parseDate(dateStr) {
   if (!dateStr || dateStr === 'N/A' || dateStr.startsWith('###')) return null;
-  const parts = dateStr.split(' ')[0].split('/');
+  // Source CSV mixes four formats:
+  //   'M/D/YYYY', 'M-D-YYYY' (month first),
+  //   'YYYY-MM-DD HH:MM:SS' (ISO),
+  //   'DD-MM-YYYY HH:MM' (day first).
+  const parts = dateStr.split(' ')[0].split(/[/-]/);
   if (parts.length !== 3) return null;
-  const [m, d, y] = parts.map(Number);
+  const [a, b, c] = parts.map(Number);
+  if (!a || !b || !c) return null;
+  let y, m, d;
+  if (parts[0].length === 4) {
+    // YYYY-MM-DD
+    y = a; m = b; d = c;
+  } else if (a > 12) {
+    // DD-MM-YYYY (day clearly > 12)
+    d = a; m = b; y = c;
+  } else if (b > 12) {
+    // MM-DD-YYYY (day clearly > 12 in second slot)
+    m = a; d = b; y = c;
+  } else {
+    // Ambiguous (both ≤ 12). Default to month-first (US/slash convention used elsewhere in this dataset).
+    m = a; d = b; y = c;
+  }
   return new Date(y, m - 1, d);
 }
 
