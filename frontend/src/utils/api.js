@@ -81,6 +81,76 @@ export function npsBucket(score) {
   return 'LOW';
 }
 
+// ── URL filter serialization ─────────────────────────────────────────────────
+// Bidirectional mapping between in-app filter state (arrays) and URL query
+// strings. Short keys keep URLs readable; comma-separated values keep arrays
+// compact. Used by Analytics Dashboard ↔ Call Listing so filters survive
+// "Open in new tab", page refresh, and bookmarking.
+
+export const FILTER_URL_KEYS = {
+  cityFilter: 'city',
+  storeFilter: 'store',
+  callTypeFilter: 'calltype',
+  intentFilter: 'intent',
+  visitFilter: 'visit',
+  expFilter: 'exp',
+  npsAgentFilter: 'agentnps',
+  npsBrandFilter: 'brandnps',
+  categoryFilter: 'category',
+  funnelFilter: 'funnel',
+  priceFilter: 'price',
+  barrierFilter: 'barrier',
+  convertedFilter: 'converted',
+  startDate: 'from',
+  endDate: 'to',
+};
+
+const ARRAY_FILTER_KEYS = new Set([
+  'cityFilter', 'storeFilter', 'callTypeFilter', 'intentFilter', 'visitFilter',
+  'expFilter', 'npsAgentFilter', 'npsBrandFilter', 'categoryFilter',
+  'funnelFilter', 'priceFilter', 'barrierFilter', 'convertedFilter',
+]);
+
+export function filtersToParams(filters) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([stateKey, value]) => {
+    const urlKey = FILTER_URL_KEYS[stateKey];
+    if (!urlKey) return;
+    if (ARRAY_FILTER_KEYS.has(stateKey)) {
+      if (Array.isArray(value) && value.length > 0) {
+        params.set(urlKey, value.join(','));
+      }
+    } else if (typeof value === 'string' && value) {
+      params.set(urlKey, value);
+    }
+  });
+  return params;
+}
+
+export function paramsToFilters(searchParams) {
+  const out = {};
+  Object.entries(FILTER_URL_KEYS).forEach(([stateKey, urlKey]) => {
+    const raw = searchParams.get(urlKey);
+    if (raw == null) {
+      out[stateKey] = ARRAY_FILTER_KEYS.has(stateKey) ? [] : '';
+      return;
+    }
+    if (ARRAY_FILTER_KEYS.has(stateKey)) {
+      out[stateKey] = raw.split(',').map(s => s.trim()).filter(Boolean);
+    } else {
+      out[stateKey] = raw;
+    }
+  });
+  return out;
+}
+
+// Build a URL like "/listing?city=Hyderabad&intent=HIGH" from a filter state object.
+export function buildFilteredUrl(path, filters) {
+  const params = filtersToParams(filters);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 function apiUrl(path) {

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   BarChart2, 
   MapPin, 
@@ -15,33 +15,36 @@ import {
   Download,
   Sparkles
 } from 'lucide-react';
-import { fetchAnalyticsData, parseDate, fetchExportData, isConverted, npsBucket } from '../utils/api';
+import { fetchAnalyticsData, parseDate, fetchExportData, isConverted, npsBucket, filtersToParams, paramsToFilters, buildFilteredUrl } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
 import * as XLSX from 'xlsx';
 
 export default function AnalyticsDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ reports: [], filters: { stores: [], product_categories: [] } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
 
-  // Local Filters
-  const [cityFilter, setCityFilter] = useState([]);
-  const [storeFilter, setStoreFilter] = useState([]);
-  const [callTypeFilter, setCallTypeFilter] = useState([]);
-  const [intentFilter, setIntentFilter] = useState([]);
-  const [visitFilter, setVisitFilter] = useState([]);
-  const [expFilter, setExpFilter] = useState([]);
-  const [npsAgentFilter, setNpsAgentFilter] = useState([]);
-  const [npsBrandFilter, setNpsBrandFilter] = useState([]);
-  const [categoryFilter, setCategoryFilter] = useState([]);
-  const [funnelFilter, setFunnelFilter] = useState([]);
-  const [priceFilter, setPriceFilter] = useState([]);
-  const [barrierFilter, setBarrierFilter] = useState([]);
-  const [convertedFilter, setConvertedFilter] = useState([]);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // Hydrate filters from URL on first render. Subsequent state changes are
+  // synced back to the URL via the useEffect below.
+  const initial = useMemo(() => paramsToFilters(searchParams), []); // mount-only
+  const [cityFilter, setCityFilter] = useState(initial.cityFilter);
+  const [storeFilter, setStoreFilter] = useState(initial.storeFilter);
+  const [callTypeFilter, setCallTypeFilter] = useState(initial.callTypeFilter);
+  const [intentFilter, setIntentFilter] = useState(initial.intentFilter);
+  const [visitFilter, setVisitFilter] = useState(initial.visitFilter);
+  const [expFilter, setExpFilter] = useState(initial.expFilter);
+  const [npsAgentFilter, setNpsAgentFilter] = useState(initial.npsAgentFilter);
+  const [npsBrandFilter, setNpsBrandFilter] = useState(initial.npsBrandFilter);
+  const [categoryFilter, setCategoryFilter] = useState(initial.categoryFilter);
+  const [funnelFilter, setFunnelFilter] = useState(initial.funnelFilter);
+  const [priceFilter, setPriceFilter] = useState(initial.priceFilter);
+  const [barrierFilter, setBarrierFilter] = useState(initial.barrierFilter);
+  const [convertedFilter, setConvertedFilter] = useState(initial.convertedFilter);
+  const [startDate, setStartDate] = useState(initial.startDate);
+  const [endDate, setEndDate] = useState(initial.endDate);
 
   useEffect(() => {
     fetchAnalyticsData()
@@ -422,28 +425,42 @@ export default function AnalyticsDashboard() {
     endDate,
   });
 
-  const handleMatrixClick = (intent, exp) => {
-    // Matrix click narrows intent + experience to the clicked cell
-    navigate('/listing', {
-      state: {
-        ...buildActiveFiltersPayload(),
-        intentFilter: [intent],
-        expFilter: [exp],
-      },
-    });
-  };
+  // Keep the URL in sync with the active filter state so that
+  // (a) refresh preserves filters, (b) the URL is shareable, and
+  // (c) "open in new tab" on any Link below produces a working URL.
+  const isFirstSync = useRef(true);
+  useEffect(() => {
+    const params = filtersToParams(buildActiveFiltersPayload());
+    // On first render, only update URL if state actually has filters that
+    // weren't in the URL already (avoids loop). After first render, always
+    // mirror state to URL.
+    if (isFirstSync.current) {
+      isFirstSync.current = false;
+      const currentQs = searchParams.toString();
+      const nextQs = params.toString();
+      if (currentQs === nextQs) return;
+    }
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, expFilter, npsAgentFilter, npsBrandFilter, categoryFilter, funnelFilter, priceFilter, barrierFilter, convertedFilter, startDate, endDate]);
 
-  const navigateToListWithFilter = (key, value) => {
-    // Preserve+add: keep all current filters, append clicked value to its filter array
+  // Build a /listing URL that carries all active filters PLUS any overrides
+  // (e.g. matrix click overrides intentFilter+expFilter; row click appends
+  // the clicked value to its filter list). Used as the `to=` for <Link>.
+  const buildListingHref = (overrides = {}) => {
     const base = buildActiveFiltersPayload();
-    const existing = Array.isArray(base[key]) ? base[key] : [];
-    const merged = existing.includes(value) ? existing : [...existing, value];
-    navigate('/listing', {
-      state: {
-        ...base,
-        [key]: merged,
-      },
+    const merged = { ...base };
+    Object.entries(overrides).forEach(([key, val]) => {
+      if (Array.isArray(val)) {
+        // For arrays, the override REPLACES (matrix click semantics)
+        merged[key] = val;
+      } else if (val && typeof val === 'object' && val.add) {
+        // Preserve+add semantics for table-row clicks
+        const existing = Array.isArray(base[key]) ? base[key] : [];
+        merged[key] = existing.includes(val.add) ? existing : [...existing, val.add];
+      }
     });
+    return buildFilteredUrl('/listing', merged);
   };
 
   const downloadCSV = (filename, headers, rows) => {
@@ -520,38 +537,38 @@ export default function AnalyticsDashboard() {
         {/* Header */}
         <div className="flex justify-between items-start mb-10">
             <div>
-                <button
-                  onClick={() => navigate('/listing', { state: buildActiveFiltersPayload() })}
-                  className="text-[10px] font-black text-indigo-600 mb-2 flex items-center gap-1 hover:gap-2 transition-all uppercase tracking-[0.2em]"
+                <Link
+                  to={buildListingHref()}
+                  className="text-[10px] font-black text-indigo-600 mb-2 flex items-center gap-1 hover:gap-2 transition-all uppercase tracking-[0.2em] w-fit"
                 >
                     View All Reports <ArrowRight className="w-3 h-3" />
-                </button>
+                </Link>
                 <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2" style={{ fontFamily: "'Fraunces', serif" }}>
                     Analytics Dashboard
                 </h1>
                 <p className="text-slate-500 font-medium">Aggregate intelligence across Google My Business call channels</p>
             </div>
             <div className="flex gap-4">
-                <button
-                    onClick={() => navigate('/insights')}
-                    className="bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-400 shadow-xl shadow-amber-500/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:from-amber-600 hover:to-orange-600 hover:scale-[1.02] transition-all group"
+                <Link
+                    to="/insights"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-400 shadow-xl shadow-amber-500/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:from-amber-600 hover:to-orange-600 hover:scale-[1.02] transition-all group no-underline"
                 >
                     <div className="flex items-center gap-2 mb-1">
                         <Sparkles className="w-4 h-4 text-amber-200 group-hover:text-white transition-colors" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-amber-200 group-hover:text-white transition-colors">Insights</span>
                     </div>
                     <span className="text-lg font-black leading-none">Generate Report</span>
-                </button>
-                <button
-                    onClick={() => navigate('/trends')}
-                    className="bg-indigo-600 border border-indigo-500 shadow-xl shadow-indigo-600/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:bg-indigo-700 hover:scale-[1.02] transition-all group"
+                </Link>
+                <Link
+                    to="/trends"
+                    className="bg-indigo-600 border border-indigo-500 shadow-xl shadow-indigo-600/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:bg-indigo-700 hover:scale-[1.02] transition-all group no-underline"
                 >
                     <div className="flex items-center gap-2 mb-1">
                         <TrendingUp className="w-4 h-4 text-indigo-200 group-hover:text-white transition-colors" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-indigo-200 group-hover:text-white transition-colors">Trends Dashboard</span>
                     </div>
                     <span className="text-lg font-black leading-none">View KPI Trends</span>
-                </button>
+                </Link>
                 <button
                     onClick={handleExportSelectedCalls}
                     disabled={exporting || filteredCalls.length === 0}
@@ -771,21 +788,21 @@ export default function AnalyticsDashboard() {
 
                 {/* HIGH INTENT */}
                 <div className="flex items-center justify-end pr-8 text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">High Intent</div>
-                <MatrixCell count={metrics.matrix.HIGH.HIGH} color="bg-[#1e4620]" onClick={() => handleMatrixClick('HIGH', 'HIGH')} />
-                <MatrixCell count={metrics.matrix.HIGH.MEDIUM} color="bg-[#4a844f]" onClick={() => handleMatrixClick('HIGH', 'MEDIUM')} />
-                <MatrixCell count={metrics.matrix.HIGH.LOW} color="bg-[#8c1c1c]" onClick={() => handleMatrixClick('HIGH', 'LOW')} />
+                <MatrixCell count={metrics.matrix.HIGH.HIGH} color="bg-[#1e4620]" to={buildListingHref({ intentFilter: ['HIGH'], expFilter: ['HIGH'] })} />
+                <MatrixCell count={metrics.matrix.HIGH.MEDIUM} color="bg-[#4a844f]" to={buildListingHref({ intentFilter: ['HIGH'], expFilter: ['MEDIUM'] })} />
+                <MatrixCell count={metrics.matrix.HIGH.LOW} color="bg-[#8c1c1c]" to={buildListingHref({ intentFilter: ['HIGH'], expFilter: ['LOW'] })} />
 
                 {/* MEDIUM INTENT */}
                 <div className="flex items-center justify-end pr-8 text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Medium Intent</div>
-                <MatrixCell count={metrics.matrix.MEDIUM.HIGH} color="bg-[#789d38]" onClick={() => handleMatrixClick('MEDIUM', 'HIGH')} />
-                <MatrixCell count={metrics.matrix.MEDIUM.MEDIUM} color="bg-[#c8a02d]" onClick={() => handleMatrixClick('MEDIUM', 'MEDIUM')} />
-                <MatrixCell count={metrics.matrix.MEDIUM.LOW} color="bg-[#c4641e]" onClick={() => handleMatrixClick('MEDIUM', 'LOW')} />
+                <MatrixCell count={metrics.matrix.MEDIUM.HIGH} color="bg-[#789d38]" to={buildListingHref({ intentFilter: ['MEDIUM'], expFilter: ['HIGH'] })} />
+                <MatrixCell count={metrics.matrix.MEDIUM.MEDIUM} color="bg-[#c8a02d]" to={buildListingHref({ intentFilter: ['MEDIUM'], expFilter: ['MEDIUM'] })} />
+                <MatrixCell count={metrics.matrix.MEDIUM.LOW} color="bg-[#c4641e]" to={buildListingHref({ intentFilter: ['MEDIUM'], expFilter: ['LOW'] })} />
 
                 {/* LOW INTENT */}
                 <div className="flex items-center justify-end pr-8 text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">Low Intent</div>
-                <MatrixCell count={metrics.matrix.LOW.HIGH} color="bg-[#c8a02d]" onClick={() => handleMatrixClick('LOW', 'HIGH')} />
-                <MatrixCell count={metrics.matrix.LOW.MEDIUM} color="bg-[#8b5c2a]" onClick={() => handleMatrixClick('LOW', 'MEDIUM')} />
-                <MatrixCell count={metrics.matrix.LOW.LOW} color="bg-[#6b1e1a]" onClick={() => handleMatrixClick('LOW', 'LOW')} />
+                <MatrixCell count={metrics.matrix.LOW.HIGH} color="bg-[#c8a02d]" to={buildListingHref({ intentFilter: ['LOW'], expFilter: ['HIGH'] })} />
+                <MatrixCell count={metrics.matrix.LOW.MEDIUM} color="bg-[#8b5c2a]" to={buildListingHref({ intentFilter: ['LOW'], expFilter: ['MEDIUM'] })} />
+                <MatrixCell count={metrics.matrix.LOW.LOW} color="bg-[#6b1e1a]" to={buildListingHref({ intentFilter: ['LOW'], expFilter: ['LOW'] })} />
             </div>
         </div>
 
@@ -842,10 +859,11 @@ export default function AnalyticsDashboard() {
                             const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
                             const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
 
+                            const cityHref = buildListingHref({ cityFilter: { add: c.city } });
                             return (
-                                <tr key={c.city} onClick={() => navigateToListWithFilter('cityFilter', c.city)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={c.city} onClick={() => navigate(cityHref)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.city}</div>
+                                        <Link to={cityHref} onClick={(e) => e.stopPropagation()} className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight no-underline">{c.city}</Link>
                                     </td>
                                     <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
                                     <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
@@ -920,11 +938,14 @@ export default function AnalyticsDashboard() {
                             const probingWhyPerc = leads > 0 ? Math.round(s.probingWhyCount / leads * 100) + '%' : '0%';
                             const proactivePerc = leads > 0 ? Math.round(s.proactiveCount / leads * 100) + '%' : '0%';
 
+                            const storeHref = buildListingHref({ storeFilter: { add: s.name } });
                             return (
-                                <tr key={s.name} onClick={() => navigateToListWithFilter('storeFilter', s.name)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={s.name} onClick={() => navigate(storeHref)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{s.name}</div>
-                                        <div className="text-xs text-slate-400 font-bold">{s.city}</div>
+                                        <Link to={storeHref} onClick={(e) => e.stopPropagation()} className="block no-underline">
+                                            <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{s.name}</div>
+                                            <div className="text-xs text-slate-400 font-bold">{s.city}</div>
+                                        </Link>
                                     </td>
                                     <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
                                     <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
@@ -999,11 +1020,14 @@ export default function AnalyticsDashboard() {
                             const probingWhyPerc = leads > 0 ? Math.round(b.probingWhyCount / leads * 100) + '%' : '0%';
                             const proactivePerc = leads > 0 ? Math.round(b.proactiveCount / leads * 100) + '%' : '0%';
 
+                            const priceHref = buildListingHref({ priceFilter: { add: b.bucket } });
                             return (
-                                <tr key={b.bucket} onClick={() => navigateToListWithFilter('priceFilter', b.bucket)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={b.bucket} onClick={() => navigate(priceHref)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{b.bucket}</div>
-                                        <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Segment Data</div>
+                                        <Link to={priceHref} onClick={(e) => e.stopPropagation()} className="block no-underline">
+                                            <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{b.bucket}</div>
+                                            <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Segment Data</div>
+                                        </Link>
                                     </td>
                                     <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
                                     <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
@@ -1078,10 +1102,11 @@ export default function AnalyticsDashboard() {
                             const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
                             const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
 
+                            const categoryHref = buildListingHref({ categoryFilter: { add: c.category } });
                             return (
-                                <tr key={c.category} onClick={() => navigateToListWithFilter('categoryFilter', c.category)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={c.category} onClick={() => navigate(categoryHref)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.category}</div>
+                                        <Link to={categoryHref} onClick={(e) => e.stopPropagation()} className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight no-underline">{c.category}</Link>
                                     </td>
                                     <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
                                     <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
@@ -1156,10 +1181,11 @@ export default function AnalyticsDashboard() {
                             const probingWhyPerc = leads > 0 ? Math.round(c.probingWhyCount / leads * 100) + '%' : '0%';
                             const proactivePerc = leads > 0 ? Math.round(c.proactiveCount / leads * 100) + '%' : '0%';
 
+                            const barrierHref = buildListingHref({ barrierFilter: { add: c.barrier } });
                             return (
-                                <tr key={c.barrier} onClick={() => navigateToListWithFilter('barrierFilter', c.barrier)} className="group hover:bg-slate-50 transition-all cursor-pointer">
+                                <tr key={c.barrier} onClick={() => navigate(barrierHref)} className="group hover:bg-slate-50 transition-all cursor-pointer">
                                     <td className="p-6">
-                                        <div className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{c.barrier}</div>
+                                        <Link to={barrierHref} onClick={(e) => e.stopPropagation()} className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight no-underline">{c.barrier}</Link>
                                     </td>
                                     <td className="p-6 text-center font-bold text-slate-600">{leads}</td>
                                     <td className="p-6 text-center font-bold text-sky-600">{revPerLead}</td>
@@ -1280,16 +1306,16 @@ function KpiCard({ label, value, subtitle, color, icon }) {
     );
 }
 
-function MatrixCell({ count, color, onClick }) {
+function MatrixCell({ count, color, to }) {
     return (
-        <button 
-          onClick={onClick}
-          className={`${color} rounded-3xl flex flex-col items-center justify-center min-h-[140px] text-white transition-all hover:-translate-y-1.5 hover:shadow-2xl hover:brightness-110 active:scale-95 group relative overflow-hidden`}
+        <Link
+          to={to}
+          className={`${color} rounded-3xl flex flex-col items-center justify-center min-h-[140px] text-white transition-all hover:-translate-y-1.5 hover:shadow-2xl hover:brightness-110 active:scale-95 group relative overflow-hidden no-underline`}
         >
             <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <span className="text-5xl font-black tracking-tighter mb-1">{count}</span>
             <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70 group-hover:opacity-100 transition-opacity">Reports</span>
-        </button>
+        </Link>
     );
 }
 
