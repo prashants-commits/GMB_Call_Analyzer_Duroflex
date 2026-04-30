@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download } from 'lucide-react';
 import { fetchAnalyticsData, parseDate, generateInsightsReport } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
@@ -165,7 +165,7 @@ export default function InsightsDashboard() {
         });
     }, [data.reports, selectedCitiesB, selectedStoresB, selectedCategoriesB, selectedBarriersB, startDateB, endDateB]);
 
-    const isOverCap = filteredCalls.length > 100 || (mode === 'compare' && filteredCallsB.length > 100);
+    const isOverCap = filteredCalls.length > 250 || (mode === 'compare' && filteredCallsB.length > 250);
     const isEmpty = filteredCalls.length === 0 || (mode === 'compare' && filteredCallsB.length === 0);
 
     const buildSegmentDesc = (cities, stores, categories, barriers) => {
@@ -456,14 +456,14 @@ export default function InsightsDashboard() {
                         <div className="flex items-center gap-6">
                             <div className="flex flex-col border-r border-slate-100 pr-6">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{mode === 'compare' ? 'Set A Calls' : 'Selected Calls'}</span>
-                                <span className={`text-3xl font-black leading-none mt-1 ${filteredCalls.length > 100 ? 'text-red-500' : 'text-amber-600'}`}>
+                                <span className={`text-3xl font-black leading-none mt-1 ${filteredCalls.length > 250 ? 'text-red-500' : 'text-amber-600'}`}>
                                     {filteredCalls.length}
                                 </span>
                             </div>
                             {mode === 'compare' && (
                                 <div className="flex flex-col border-r border-slate-100 pr-6">
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Set B Calls</span>
-                                    <span className={`text-3xl font-black leading-none mt-1 ${filteredCallsB.length > 100 ? 'text-red-500' : 'text-indigo-600'}`}>
+                                    <span className={`text-3xl font-black leading-none mt-1 ${filteredCallsB.length > 250 ? 'text-red-500' : 'text-indigo-600'}`}>
                                         {filteredCallsB.length}
                                     </span>
                                 </div>
@@ -472,7 +472,7 @@ export default function InsightsDashboard() {
                             {isOverCap && (
                                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-red-600 animate-pulse">
                                     <AlertTriangle className="w-4 h-4" />
-                                    <span className="text-xs font-bold">Sorry, maximum 100 calls allowed per dataset. Please narrow down your search.</span>
+                                    <span className="text-xs font-bold">Sorry, maximum 250 calls allowed per dataset. Please narrow down your search.</span>
                                 </div>
                             )}
                         </div>
@@ -630,8 +630,30 @@ export default function InsightsDashboard() {
                                                 {idx + 1}
                                             </div>
                                             <div className="flex-1">
-                                                <h4 className="font-black text-slate-800 text-sm mb-1">{item.title}</h4>
+                                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                    <h4 className="font-black text-slate-800 text-sm">{item.title}</h4>
+                                                    {item.call_percentage && (
+                                                        <span className="text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">
+                                                            Targets {item.call_percentage}{item.call_count != null ? ` (${item.call_count} calls)` : ''}
+                                                        </span>
+                                                    )}
+                                                    {item.dataset_a?.call_percentage && (
+                                                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">
+                                                            A: {item.dataset_a.call_percentage}
+                                                        </span>
+                                                    )}
+                                                    {item.dataset_b?.call_percentage && (
+                                                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                                                            B: {item.dataset_b.call_percentage}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-slate-500 text-sm leading-relaxed">{item.detail}</p>
+                                                {item.addresses_themes?.length > 0 && (
+                                                    <p className="text-[11px] text-slate-400 italic mt-1">
+                                                        Addresses: {item.addresses_themes.join('; ')}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -639,36 +661,9 @@ export default function InsightsDashboard() {
                             </div>
                         </div>
 
-                        {/* Custom Answer Card */}
+                        {/* Custom Answer Card — long-form first-principles analysis */}
                         {report.custom_answer && (
-                            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-8">
-                                <div className="p-8 border-b border-slate-100 flex items-center gap-4">
-                                    <div className="p-3 rounded-2xl bg-fuchsia-50 text-fuchsia-600">
-                                        <Sparkles className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Fraunces', serif" }}>
-                                            Answer to your Question
-                                        </h3>
-                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Q: {report.custom_answer.question || customQuestion}</p>
-                                    </div>
-                                </div>
-                                <div className="p-8">
-                                    <div className="space-y-5">
-                                        {(report.custom_answer.answer_points || []).map((item, idx) => (
-                                            <div key={idx} className="flex gap-4 items-start group">
-                                                <div className="flex-shrink-0 w-9 h-9 bg-fuchsia-50 border border-fuchsia-200 rounded-xl flex items-center justify-center text-fuchsia-600 font-black text-sm group-hover:bg-fuchsia-100 transition-colors">
-                                                    {idx + 1}
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-black text-slate-800 text-sm mb-1">{item.title}</h4>
-                                                    <p className="text-slate-500 text-sm leading-relaxed">{item.detail}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            <CustomAnswerCard answer={report.custom_answer} fallbackQuestion={customQuestion} />
                         )}
                     </div>
                 )}
@@ -785,15 +780,7 @@ function InsightCard({ title, icon, accentColor, goodItems, badItems }) {
                     </div>
                     <div className="space-y-5">
                         {goodItems.map((item, idx) => (
-                            <div key={idx} className="flex gap-3 items-start">
-                                <div className="flex-shrink-0 w-7 h-7 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center text-emerald-600 font-black text-xs">
-                                    {idx + 1}
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-slate-800 text-sm mb-0.5">{item.title}</h4>
-                                    <p className="text-slate-500 text-xs leading-relaxed">{item.detail}</p>
-                                </div>
-                            </div>
+                            <InsightItem key={idx} idx={idx} item={item} tone="good" />
                         ))}
                     </div>
                 </div>
@@ -806,18 +793,206 @@ function InsightCard({ title, icon, accentColor, goodItems, badItems }) {
                     </div>
                     <div className="space-y-5">
                         {badItems.map((item, idx) => (
-                            <div key={idx} className="flex gap-3 items-start">
-                                <div className="flex-shrink-0 w-7 h-7 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-center text-rose-600 font-black text-xs">
-                                    {idx + 1}
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-slate-800 text-sm mb-0.5">{item.title}</h4>
-                                    <p className="text-slate-500 text-xs leading-relaxed">{item.detail}</p>
-                                </div>
-                            </div>
+                            <InsightItem key={idx} idx={idx} item={item} tone="bad" />
                         ))}
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// Renders a single Top-N insight bullet. Handles both shapes:
+//   single-segment: { title, detail, call_count, call_percentage, example_clean_numbers }
+//   comparison:     { title, detail, dataset_a:{...}, dataset_b:{...} }
+function InsightItem({ idx, item, tone }) {
+    const numStyle = tone === 'good'
+        ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+        : 'bg-rose-50 border-rose-200 text-rose-600';
+    const isCompare = item.dataset_a || item.dataset_b;
+
+    return (
+        <div className="flex gap-3 items-start">
+            <div className={`flex-shrink-0 w-7 h-7 ${numStyle} border rounded-lg flex items-center justify-center font-black text-xs`}>
+                {idx + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h4 className="font-black text-slate-800 text-sm">{item.title}</h4>
+                    {!isCompare && item.call_percentage && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {item.call_percentage} of calls{item.call_count != null ? ` (${item.call_count})` : ''}
+                        </span>
+                    )}
+                </div>
+                <p className="text-slate-500 text-xs leading-relaxed">{item.detail}</p>
+
+                {/* Single-segment phone number examples */}
+                {!isCompare && item.example_clean_numbers?.length > 0 && (
+                    <CleanNumberList numbers={item.example_clean_numbers} />
+                )}
+
+                {/* Comparison: Dataset A vs Dataset B sub-blocks */}
+                {isCompare && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                        <DatasetBlock label="Dataset A" data={item.dataset_a} accent="amber" />
+                        <DatasetBlock label="Dataset B" data={item.dataset_b} accent="indigo" />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function DatasetBlock({ label, data, accent }) {
+    if (!data) return null;
+    const accentClass = accent === 'amber'
+        ? 'text-amber-600 bg-amber-50 border-amber-100'
+        : 'text-indigo-600 bg-indigo-50 border-indigo-100';
+    return (
+        <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                {data.call_percentage && (
+                    <span className={`text-[10px] font-bold ${accentClass} border px-2 py-0.5 rounded-full`}>
+                        {data.call_percentage}{data.call_count != null ? ` (${data.call_count})` : ''}
+                    </span>
+                )}
+            </div>
+            {data.example_clean_numbers?.length > 0 && (
+                <CleanNumberList numbers={data.example_clean_numbers} compact />
+            )}
+        </div>
+    );
+}
+
+function CleanNumberList({ numbers, compact }) {
+    if (!numbers || numbers.length === 0) return null;
+    return (
+        <div className={`mt-2 flex flex-wrap gap-1.5 ${compact ? '' : 'items-center'}`}>
+            {!compact && (
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mr-1">Examples:</span>
+            )}
+            {numbers.map(n => (
+                <Link
+                    key={n}
+                    to={`/call/${n}`}
+                    className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 px-2 py-0.5 rounded transition-colors"
+                    title={`Open call ${n}`}
+                >
+                    {n}
+                </Link>
+            ))}
+        </div>
+    );
+}
+
+// Renders the deep custom-answer block: question, multi-paragraph first-principles
+// analysis, supporting evidence (per dataset in compare mode), and conclusion.
+function CustomAnswerCard({ answer, fallbackQuestion }) {
+    const isCompare = answer.dataset_a_evidence || answer.dataset_b_evidence;
+    const paragraphs = (answer.first_principles_analysis || '').split(/\n\n+/).filter(Boolean);
+
+    return (
+        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-8">
+            <div className="p-8 border-b border-slate-100 flex items-center gap-4">
+                <div className="p-3 rounded-2xl bg-fuchsia-50 text-fuchsia-600">
+                    <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Fraunces', serif" }}>
+                        Answer to your Question
+                    </h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Q: {answer.question || fallbackQuestion}</p>
+                </div>
+            </div>
+            <div className="p-8 space-y-8">
+                {/* First Principles Analysis */}
+                {paragraphs.length > 0 && (
+                    <div>
+                        <div className="text-[10px] font-black text-fuchsia-600 uppercase tracking-widest mb-3">First Principles Analysis</div>
+                        <div className="space-y-3">
+                            {paragraphs.map((p, i) => (
+                                <p key={i} className="text-slate-700 text-sm leading-relaxed">{p}</p>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Supporting Evidence — single segment */}
+                {!isCompare && answer.key_insights?.length > 0 && (
+                    <div>
+                        <div className="text-[10px] font-black text-fuchsia-600 uppercase tracking-widest mb-3">Supporting Evidence</div>
+                        <div className="space-y-4">
+                            {answer.key_insights.map((ki, idx) => (
+                                <EvidenceItem key={idx} idx={idx} item={ki} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Supporting Evidence — comparison mode (two columns) */}
+                {isCompare && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">Dataset A — Evidence</div>
+                            <div className="space-y-4">
+                                {(answer.dataset_a_evidence || []).map((ki, idx) => (
+                                    <EvidenceItem key={idx} idx={idx} item={ki} accent="amber" />
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-3">Dataset B — Evidence</div>
+                            <div className="space-y-4">
+                                {(answer.dataset_b_evidence || []).map((ki, idx) => (
+                                    <EvidenceItem key={idx} idx={idx} item={ki} accent="indigo" />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Conclusion / Synthesis */}
+                {(answer.conclusion || answer.comparative_synthesis) && (
+                    <div className="bg-fuchsia-50/40 border border-fuchsia-100 rounded-2xl p-6">
+                        <div className="text-[10px] font-black text-fuchsia-600 uppercase tracking-widest mb-2">
+                            {isCompare ? 'Comparative Synthesis' : 'Conclusion'}
+                        </div>
+                        <p className="text-slate-700 text-sm leading-relaxed">
+                            {answer.comparative_synthesis || answer.conclusion}
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function EvidenceItem({ idx, item, accent }) {
+    const accentClass = accent === 'amber'
+        ? 'bg-amber-50 border-amber-200 text-amber-600'
+        : accent === 'indigo'
+        ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+        : 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-600';
+    return (
+        <div className="flex gap-3 items-start">
+            <div className={`flex-shrink-0 w-7 h-7 ${accentClass} border rounded-lg flex items-center justify-center font-black text-xs`}>
+                {idx + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <p className="font-bold text-slate-800 text-sm">{item.insight || item.title}</p>
+                    {item.call_percentage && (
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {item.call_percentage}{item.call_count != null ? ` (${item.call_count})` : ''}
+                        </span>
+                    )}
+                </div>
+                {item.detail && <p className="text-slate-500 text-xs leading-relaxed">{item.detail}</p>}
+                {item.example_clean_numbers?.length > 0 && (
+                    <CleanNumberList numbers={item.example_clean_numbers} />
+                )}
             </div>
         </div>
     );

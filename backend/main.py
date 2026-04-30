@@ -93,10 +93,10 @@ async def generate_insights_endpoint(request: InsightRequest):
     and return the structured executive report.
     """
     # Validate cap
-    if len(request.clean_numbers) > 100:
+    if len(request.clean_numbers) > 250:
         raise HTTPException(
             status_code=400,
-            detail="Maximum 100 calls allowed per insight generation. Please narrow your filters."
+            detail="Maximum 250 calls allowed per insight generation. Please narrow your filters."
         )
 
     if len(request.clean_numbers) == 0:
@@ -116,10 +116,10 @@ async def generate_insights_endpoint(request: InsightRequest):
 
     call_data_b = None
     if request.clean_numbers_b is not None:
-        if len(request.clean_numbers_b) > 100:
+        if len(request.clean_numbers_b) > 250:
             raise HTTPException(
                 status_code=400,
-                detail="Maximum 100 calls allowed for Dataset B. Please narrow your filters."
+                detail="Maximum 250 calls allowed for Dataset B. Please narrow your filters."
             )
         if len(request.clean_numbers_b) == 0:
             raise HTTPException(
