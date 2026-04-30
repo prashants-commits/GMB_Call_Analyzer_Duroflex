@@ -15,7 +15,7 @@ import {
   Download,
   Sparkles
 } from 'lucide-react';
-import { fetchAnalyticsData, parseDate, fetchExportData } from '../utils/api';
+import { fetchAnalyticsData, parseDate, fetchExportData, isConverted, npsBucket } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
 import * as XLSX from 'xlsx';
 
@@ -32,9 +32,14 @@ export default function AnalyticsDashboard() {
   const [callTypeFilter, setCallTypeFilter] = useState([]);
   const [intentFilter, setIntentFilter] = useState([]);
   const [visitFilter, setVisitFilter] = useState([]);
+  const [expFilter, setExpFilter] = useState([]);
   const [npsAgentFilter, setNpsAgentFilter] = useState([]);
   const [npsBrandFilter, setNpsBrandFilter] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState([]);
+  const [funnelFilter, setFunnelFilter] = useState([]);
+  const [priceFilter, setPriceFilter] = useState([]);
+  const [barrierFilter, setBarrierFilter] = useState([]);
+  const [convertedFilter, setConvertedFilter] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -59,6 +64,19 @@ export default function AnalyticsDashboard() {
     return [...new Set(stores)].sort();
   }, [cityFilter, data.filters.stores]);
 
+  const funnelStages = useMemo(
+    () => [...new Set((data.reports || []).map(r => r.funnel_stage).filter(Boolean))].sort(),
+    [data.reports]
+  );
+  const priceBuckets = useMemo(
+    () => [...new Set((data.reports || []).map(r => r.price_bucket).filter(Boolean))].sort(),
+    [data.reports]
+  );
+  const barriers = useMemo(
+    () => [...new Set((data.reports || []).map(r => r.purchase_barrier).filter(Boolean))].sort(),
+    [data.reports]
+  );
+
   useEffect(() => {
     if (cityFilter.length > 0 && storeFilter.length > 0) {
         const validStores = storeFilter.filter(s => availableStores.includes(s));
@@ -76,28 +94,25 @@ export default function AnalyticsDashboard() {
     if (callTypeFilter.length > 0) result = result.filter(r => callTypeFilter.includes(r.call_type));
     if (intentFilter.length > 0) result = result.filter(r => intentFilter.includes(r.intent_rating));
     if (visitFilter.length > 0) result = result.filter(r => visitFilter.includes(r.visit_rating));
+    if (expFilter.length > 0) result = result.filter(r => expFilter.includes(r.experience_rating));
     if (categoryFilter.length > 0) result = result.filter(r => categoryFilter.includes(r.product_category));
-    
+    if (funnelFilter.length > 0) result = result.filter(r => funnelFilter.includes(r.funnel_stage));
+    if (priceFilter.length > 0) result = result.filter(r => priceFilter.includes(r.price_bucket));
+    if (barrierFilter.length > 0) result = result.filter(r => barrierFilter.includes(r.purchase_barrier));
+
     if (npsAgentFilter.length > 0) {
-        result = result.filter(r => {
-            const isHigh = r.nps_agent >= 8;
-            const isMedium = r.nps_agent >= 5 && r.nps_agent < 8;
-            const isLow = r.nps_agent < 5;
-            if (npsAgentFilter.includes('HIGH') && isHigh) return true;
-            if (npsAgentFilter.includes('MEDIUM') && isMedium) return true;
-            if (npsAgentFilter.includes('LOW') && isLow) return true;
-            return false;
-        });
+        result = result.filter(r => npsAgentFilter.includes(npsBucket(r.nps_agent)));
     }
 
     if (npsBrandFilter.length > 0) {
+        result = result.filter(r => npsBrandFilter.includes(npsBucket(r.nps_brand)));
+    }
+
+    if (convertedFilter.length > 0) {
         result = result.filter(r => {
-            const isHigh = r.nps_brand >= 8;
-            const isMedium = r.nps_brand >= 5 && r.nps_brand < 8;
-            const isLow = r.nps_brand < 5;
-            if (npsBrandFilter.includes('HIGH') && isHigh) return true;
-            if (npsBrandFilter.includes('MEDIUM') && isMedium) return true;
-            if (npsBrandFilter.includes('LOW') && isLow) return true;
+            const conv = isConverted(r);
+            if (convertedFilter.includes('YES') && conv) return true;
+            if (convertedFilter.includes('NO') && !conv) return true;
             return false;
         });
     }
@@ -126,7 +141,7 @@ export default function AnalyticsDashboard() {
     }
 
     return result;
-  }, [data.reports, cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, npsAgentFilter, npsBrandFilter, categoryFilter, startDate, endDate]);
+  }, [data.reports, cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, expFilter, npsAgentFilter, npsBrandFilter, categoryFilter, funnelFilter, priceFilter, barrierFilter, convertedFilter, startDate, endDate]);
 
   const metrics = useMemo(() => {
     const total = filteredCalls.length;
@@ -135,7 +150,7 @@ export default function AnalyticsDashboard() {
     let totalRevenue = 0;
 
     filteredCalls.forEach(r => {
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             convertedCount++;
         }
         
@@ -219,7 +234,7 @@ export default function AnalyticsDashboard() {
         c.sumBrand += r.nps_brand;
         c.countNps++;
 
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             c.convertedCount++;
         }
         let rev = 0;
@@ -257,7 +272,7 @@ export default function AnalyticsDashboard() {
         s.a += r.relax.a;
         s.x += r.relax.x;
 
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             s.convertedCount++;
         }
         let rev = 0;
@@ -290,7 +305,7 @@ export default function AnalyticsDashboard() {
         b.sumBrand += r.nps_brand;
         b.countNps++;
 
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             b.convertedCount++;
         }
         let rev = 0;
@@ -323,7 +338,7 @@ export default function AnalyticsDashboard() {
         c.sumBrand += r.nps_brand;
         c.countNps++;
 
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             c.convertedCount++;
         }
         let rev = 0;
@@ -356,7 +371,7 @@ export default function AnalyticsDashboard() {
         a.sumBrand += r.nps_brand;
         a.countNps++;
 
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             a.convertedCount++;
         }
         let rev = 0;
@@ -389,12 +404,46 @@ export default function AnalyticsDashboard() {
     };
   }, [filteredCalls]);
 
+  const buildActiveFiltersPayload = () => ({
+    cityFilter,
+    storeFilter,
+    callTypeFilter,
+    intentFilter,
+    visitFilter,
+    expFilter,
+    npsAgentFilter,
+    npsBrandFilter,
+    categoryFilter,
+    funnelFilter,
+    priceFilter,
+    barrierFilter,
+    convertedFilter,
+    startDate,
+    endDate,
+  });
+
   const handleMatrixClick = (intent, exp) => {
-    navigate('/listing', { state: { intentFilter: intent, expFilter: exp, startDate, endDate } });
+    // Matrix click narrows intent + experience to the clicked cell
+    navigate('/listing', {
+      state: {
+        ...buildActiveFiltersPayload(),
+        intentFilter: [intent],
+        expFilter: [exp],
+      },
+    });
   };
 
   const navigateToListWithFilter = (key, value) => {
-    navigate('/listing', { state: { [key]: value, startDate, endDate } });
+    // Preserve+add: keep all current filters, append clicked value to its filter array
+    const base = buildActiveFiltersPayload();
+    const existing = Array.isArray(base[key]) ? base[key] : [];
+    const merged = existing.includes(value) ? existing : [...existing, value];
+    navigate('/listing', {
+      state: {
+        ...base,
+        [key]: merged,
+      },
+    });
   };
 
   const downloadCSV = (filename, headers, rows) => {
@@ -471,8 +520,8 @@ export default function AnalyticsDashboard() {
         {/* Header */}
         <div className="flex justify-between items-start mb-10">
             <div>
-                <button 
-                  onClick={() => navigate('/listing', { state: { startDate, endDate } })}
+                <button
+                  onClick={() => navigate('/listing', { state: buildActiveFiltersPayload() })}
                   className="text-[10px] font-black text-indigo-600 mb-2 flex items-center gap-1 hover:gap-2 transition-all uppercase tracking-[0.2em]"
                 >
                     View All Reports <ArrowRight className="w-3 h-3" />
@@ -557,32 +606,67 @@ export default function AnalyticsDashboard() {
               options={['HIGH', 'MEDIUM', 'LOW']} 
             />
 
-            <FilterSelect 
-              label="Visit Intent" 
-              value={visitFilter} 
-              onChange={setVisitFilter} 
-              options={['HIGH', 'MEDIUM', 'LOW']} 
+            <FilterSelect
+              label="Visit Intent"
+              value={visitFilter}
+              onChange={setVisitFilter}
+              options={['HIGH', 'MEDIUM', 'LOW']}
             />
 
-            <FilterSelect 
-              label="Agent NPS" 
-              value={npsAgentFilter} 
-              onChange={setNpsAgentFilter} 
-              options={['HIGH', 'MEDIUM', 'LOW']} 
+            <FilterSelect
+              label="Experience"
+              value={expFilter}
+              onChange={setExpFilter}
+              options={['HIGH', 'MEDIUM', 'LOW']}
             />
 
-            <FilterSelect 
-              label="Brand NPS" 
-              value={npsBrandFilter} 
-              onChange={setNpsBrandFilter} 
-              options={['HIGH', 'MEDIUM', 'LOW']} 
+            <FilterSelect
+              label="Agent NPS"
+              value={npsAgentFilter}
+              onChange={setNpsAgentFilter}
+              options={['HIGH', 'MEDIUM', 'LOW']}
             />
 
-            <FilterSelect 
-              label="Category" 
-              value={categoryFilter} 
-              onChange={setCategoryFilter} 
-              options={data.filters.product_categories} 
+            <FilterSelect
+              label="Brand NPS"
+              value={npsBrandFilter}
+              onChange={setNpsBrandFilter}
+              options={['HIGH', 'MEDIUM', 'LOW']}
+            />
+
+            <FilterSelect
+              label="Category"
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={data.filters.product_categories}
+            />
+
+            <FilterSelect
+              label="Funnel Stage"
+              value={funnelFilter}
+              onChange={setFunnelFilter}
+              options={funnelStages}
+            />
+
+            <FilterSelect
+              label="Price Bucket"
+              value={priceFilter}
+              onChange={setPriceFilter}
+              options={priceBuckets}
+            />
+
+            <FilterSelect
+              label="Purchase Barrier"
+              value={barrierFilter}
+              onChange={setBarrierFilter}
+              options={barriers}
+            />
+
+            <FilterSelect
+              label="Converted"
+              value={convertedFilter}
+              onChange={setConvertedFilter}
+              options={['YES', 'NO']}
             />
 
             <div className="flex items-center gap-2 px-4 border-l border-slate-100 ml-2">
@@ -606,11 +690,12 @@ export default function AnalyticsDashboard() {
                 </div>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 setCityFilter([]); setStoreFilter([]); setCallTypeFilter([]); setIntentFilter([]);
-                setVisitFilter([]); setNpsAgentFilter([]); setNpsBrandFilter([]);
-                setCategoryFilter([]); setStartDate(''); setEndDate('');
+                setVisitFilter([]); setExpFilter([]); setNpsAgentFilter([]); setNpsBrandFilter([]);
+                setCategoryFilter([]); setFunnelFilter([]); setPriceFilter([]); setBarrierFilter([]);
+                setConvertedFilter([]); setStartDate(''); setEndDate('');
               }}
               className="ml-auto text-xs font-bold text-red-500 hover:text-red-700"
             >

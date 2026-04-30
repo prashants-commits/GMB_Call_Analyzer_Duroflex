@@ -1,4 +1,14 @@
+# Backend Python dependencies for GMB Calls Analyzer
+# Install all at once: pip install -r requirements.txt
+
+# Web framework
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
+
+# Google Gemini API client (for Insights generation)
 google-genai>=1.0.0
+
+# Environment variables (.env file loader)
 python-dotenv>=1.0.0
+
+# Note: csv, json, os, re, pathlib, typing are part of the Python standard library — no install needed.
