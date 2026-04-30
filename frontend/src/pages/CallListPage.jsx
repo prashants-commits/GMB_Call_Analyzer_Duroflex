@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate, isConverted, npsBucket } from '../utils/api';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate, isConverted, npsBucket, filtersToParams, paramsToFilters } from '../utils/api';
 import { Users, Target, DollarSign, Activity } from 'lucide-react';
 import ScoreBadge from '../components/ScoreBadge';
 import cityStoreMapping from '../utils/city_store_mapping.json';
@@ -8,27 +8,31 @@ import cityStoreMapping from '../utils/city_store_mapping.json';
 export default function CallListPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ calls: [], filters: { stores: [], cities: [] } });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Filter state
+  // Hydrate filters from URL on first render. URL is the source of truth so
+  // that "open in new tab", refresh, and bookmarks all preserve the filters.
+  const initial = useMemo(() => paramsToFilters(searchParams), []); // mount-only
+
   const [search, setSearch] = useState('');
-  const [storeFilter, setStoreFilter] = useState([]);
-  const [intentFilter, setIntentFilter] = useState([]);
-  const [expFilter, setExpFilter] = useState([]);
-  const [funnelFilter, setFunnelFilter] = useState([]);
-  const [cityFilter, setCityFilter] = useState([]);
-  const [priceFilter, setPriceFilter] = useState([]);
-  const [categoryFilter, setCategoryFilter] = useState([]);
-  const [barrierFilter, setBarrierFilter] = useState([]);
-  const [callTypeFilter, setCallTypeFilter] = useState([]);
-  const [visitFilter, setVisitFilter] = useState([]);
-  const [npsAgentFilter, setNpsAgentFilter] = useState([]);
-  const [npsBrandFilter, setNpsBrandFilter] = useState([]);
-  const [convertedFilter, setConvertedFilter] = useState([]);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [storeFilter, setStoreFilter] = useState(initial.storeFilter);
+  const [intentFilter, setIntentFilter] = useState(initial.intentFilter);
+  const [expFilter, setExpFilter] = useState(initial.expFilter);
+  const [funnelFilter, setFunnelFilter] = useState(initial.funnelFilter);
+  const [cityFilter, setCityFilter] = useState(initial.cityFilter);
+  const [priceFilter, setPriceFilter] = useState(initial.priceFilter);
+  const [categoryFilter, setCategoryFilter] = useState(initial.categoryFilter);
+  const [barrierFilter, setBarrierFilter] = useState(initial.barrierFilter);
+  const [callTypeFilter, setCallTypeFilter] = useState(initial.callTypeFilter);
+  const [visitFilter, setVisitFilter] = useState(initial.visitFilter);
+  const [npsAgentFilter, setNpsAgentFilter] = useState(initial.npsAgentFilter);
+  const [npsBrandFilter, setNpsBrandFilter] = useState(initial.npsBrandFilter);
+  const [convertedFilter, setConvertedFilter] = useState(initial.convertedFilter);
+  const [startDate, setStartDate] = useState(initial.startDate);
+  const [endDate, setEndDate] = useState(initial.endDate);
 
   useEffect(() => {
     fetchCalls()
@@ -39,8 +43,8 @@ export default function CallListPage() {
       })
       .finally(() => setLoading(false));
 
-    // Handle incoming filters from dashboard. Normalize any string -> array
-    // so downstream `.length` / `.includes()` and city↔store validation behave correctly.
+    // Backwards-compat: if a legacy navigation passes filters via location.state
+    // (older Analytics Dashboard versions), apply them on top of URL-derived state.
     if (location.state) {
         const toArray = (v) => (Array.isArray(v) ? v : v != null ? [v] : []);
         if (location.state.intentFilter)    setIntentFilter(toArray(location.state.intentFilter));
@@ -60,6 +64,23 @@ export default function CallListPage() {
         if (location.state.endDate)   setEndDate(location.state.endDate);
     }
   }, [location.state]);
+
+  // Sync filter state -> URL so the page is shareable, refresh-safe, and any
+  // <Link> we render below uses an href that keeps these filters.
+  const isFirstSync = useRef(true);
+  useEffect(() => {
+    const params = filtersToParams({
+      cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, expFilter,
+      npsAgentFilter, npsBrandFilter, categoryFilter, funnelFilter, priceFilter,
+      barrierFilter, convertedFilter, startDate, endDate,
+    });
+    if (isFirstSync.current) {
+      isFirstSync.current = false;
+      if (params.toString() === searchParams.toString()) return;
+    }
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityFilter, storeFilter, callTypeFilter, intentFilter, visitFilter, expFilter, npsAgentFilter, npsBrandFilter, categoryFilter, funnelFilter, priceFilter, barrierFilter, convertedFilter, startDate, endDate]);
 
   const filteredCalls = useMemo(() => {
     let result = data.calls || [];
@@ -402,18 +423,20 @@ export default function CallListPage() {
                       </div>
                   </td></tr>
                 ) : (
-                  filteredCalls.map((call, idx) => (
+                  filteredCalls.map((call, idx) => {
+                    const callHref = `/call/${call.clean_number}`;
+                    return (
                     <tr key={call.clean_number}
-                      onClick={() => navigate(`/call/${call.clean_number}`)}
+                      onClick={() => navigate(callHref)}
                       className="group hover:bg-blue-50/50 transition-all cursor-pointer relative">
-                      
+
                       <td className="px-8 py-5">
-                        <div className="flex flex-col">
+                        <Link to={callHref} onClick={(e) => e.stopPropagation()} className="flex flex-col no-underline">
                             <span className="font-mono text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md w-fit mb-1 border border-gray-200">
                               #{call.clean_number ? call.clean_number.slice(-8) : 'N/A'}
                             </span>
                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{call.brand}</span>
-                        </div>
+                        </Link>
                       </td>
 
                       <td className="px-8 py-5">
@@ -478,7 +501,8 @@ export default function CallListPage() {
                       </td>
 
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
