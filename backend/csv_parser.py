@@ -485,6 +485,7 @@ class CallDataStore:
         Extracts from the stored call details, remapping to the required fields.
         """
         INSIGHT_FIELDS = [
+            ("clean_number", "Clean Number"),
             ("city", "City"),
             ("store_name", "Store Name"),
             ("product_category", "Product Category"),
@@ -518,6 +519,7 @@ class CallDataStore:
                 continue
 
             row = {}
+            row["Clean Number"] = cn
             row["City"] = detail.get("identity", {}).get("city", "")
             row["Store Name"] = detail.get("identity", {}).get("store_name", "")
             row["Product Category"] = detail.get("product_intelligence", {}).get("category", "")
