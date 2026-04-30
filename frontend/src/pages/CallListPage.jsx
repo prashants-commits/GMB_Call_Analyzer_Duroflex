@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate } from '../utils/api';
+import { fetchCalls, formatDuration, intentDotColor, formatShortDate, parseDate, isConverted, npsBucket } from '../utils/api';
 import { Users, Target, DollarSign, Activity } from 'lucide-react';
 import ScoreBadge from '../components/ScoreBadge';
 import cityStoreMapping from '../utils/city_store_mapping.json';
@@ -22,6 +22,11 @@ export default function CallListPage() {
   const [priceFilter, setPriceFilter] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState([]);
   const [barrierFilter, setBarrierFilter] = useState([]);
+  const [callTypeFilter, setCallTypeFilter] = useState([]);
+  const [visitFilter, setVisitFilter] = useState([]);
+  const [npsAgentFilter, setNpsAgentFilter] = useState([]);
+  const [npsBrandFilter, setNpsBrandFilter] = useState([]);
+  const [convertedFilter, setConvertedFilter] = useState([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -34,17 +39,25 @@ export default function CallListPage() {
       })
       .finally(() => setLoading(false));
 
-    // Handle incoming filters from dashboard
+    // Handle incoming filters from dashboard. Normalize any string -> array
+    // so downstream `.length` / `.includes()` and city↔store validation behave correctly.
     if (location.state) {
-        if (location.state.intentFilter) setIntentFilter(location.state.intentFilter);
-        if (location.state.expFilter) setExpFilter(location.state.expFilter);
-        if (location.state.storeFilter) setStoreFilter(location.state.storeFilter);
-        if (location.state.cityFilter) setCityFilter(location.state.cityFilter);
-        if (location.state.priceFilter) setPriceFilter(location.state.priceFilter);
-        if (location.state.categoryFilter) setCategoryFilter(location.state.categoryFilter);
-        if (location.state.barrierFilter) setBarrierFilter(location.state.barrierFilter);
+        const toArray = (v) => (Array.isArray(v) ? v : v != null ? [v] : []);
+        if (location.state.intentFilter)    setIntentFilter(toArray(location.state.intentFilter));
+        if (location.state.expFilter)       setExpFilter(toArray(location.state.expFilter));
+        if (location.state.storeFilter)     setStoreFilter(toArray(location.state.storeFilter));
+        if (location.state.cityFilter)      setCityFilter(toArray(location.state.cityFilter));
+        if (location.state.priceFilter)     setPriceFilter(toArray(location.state.priceFilter));
+        if (location.state.categoryFilter)  setCategoryFilter(toArray(location.state.categoryFilter));
+        if (location.state.barrierFilter)   setBarrierFilter(toArray(location.state.barrierFilter));
+        if (location.state.funnelFilter)    setFunnelFilter(toArray(location.state.funnelFilter));
+        if (location.state.callTypeFilter)  setCallTypeFilter(toArray(location.state.callTypeFilter));
+        if (location.state.visitFilter)     setVisitFilter(toArray(location.state.visitFilter));
+        if (location.state.npsAgentFilter)  setNpsAgentFilter(toArray(location.state.npsAgentFilter));
+        if (location.state.npsBrandFilter)  setNpsBrandFilter(toArray(location.state.npsBrandFilter));
+        if (location.state.convertedFilter) setConvertedFilter(toArray(location.state.convertedFilter));
         if (location.state.startDate) setStartDate(location.state.startDate);
-        if (location.state.endDate) setEndDate(location.state.endDate);
+        if (location.state.endDate)   setEndDate(location.state.endDate);
     }
   }, [location.state]);
 
@@ -68,6 +81,18 @@ export default function CallListPage() {
     if (priceFilter.length > 0) result = result.filter(c => priceFilter.includes(c.price_bucket));
     if (categoryFilter.length > 0) result = result.filter(c => categoryFilter.includes(c.product_category));
     if (barrierFilter.length > 0) result = result.filter(c => barrierFilter.includes(c.purchase_barrier));
+    if (callTypeFilter.length > 0) result = result.filter(c => callTypeFilter.includes(c.call_type));
+    if (visitFilter.length > 0) result = result.filter(c => visitFilter.includes(c.visit_rating));
+    if (npsAgentFilter.length > 0) result = result.filter(c => npsAgentFilter.includes(npsBucket(c.nps_agent)));
+    if (npsBrandFilter.length > 0) result = result.filter(c => npsBrandFilter.includes(npsBucket(c.nps_brand)));
+    if (convertedFilter.length > 0) {
+        result = result.filter(c => {
+            const conv = isConverted(c);
+            if (convertedFilter.includes('YES') && conv) return true;
+            if (convertedFilter.includes('NO') && !conv) return true;
+            return false;
+        });
+    }
 
     if (startDate || endDate) {
         result = result.filter(c => {
@@ -93,7 +118,7 @@ export default function CallListPage() {
     }
 
     return result;
-  }, [data.calls, search, storeFilter, intentFilter, expFilter, funnelFilter, cityFilter, priceFilter, categoryFilter, barrierFilter, startDate, endDate]);
+  }, [data.calls, search, storeFilter, intentFilter, expFilter, funnelFilter, cityFilter, priceFilter, categoryFilter, barrierFilter, callTypeFilter, visitFilter, npsAgentFilter, npsBrandFilter, convertedFilter, startDate, endDate]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -103,7 +128,7 @@ export default function CallListPage() {
     let totalRevenue = 0;
 
     filteredCalls.forEach(r => {
-        if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
+        if (isConverted(r)) {
             convertedCount++;
         }
         
@@ -145,6 +170,7 @@ export default function CallListPage() {
   const pricesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.price_bucket).filter(Boolean).sort())], [data.calls]);
   const categoriesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.product_category).filter(Boolean).sort())], [data.calls]);
   const barriersList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.purchase_barrier).filter(Boolean).sort())], [data.calls]);
+  const callTypesList = useMemo(() => ['All', ...new Set((data.calls || []).map(c => c.call_type).filter(Boolean).sort())], [data.calls]);
 
   const availableStores = useMemo(() => {
     if (cityFilter.length === 0) {
@@ -171,6 +197,8 @@ export default function CallListPage() {
   const resetFilters = () => {
     setSearch(''); setStoreFilter([]); setIntentFilter([]); setExpFilter([]); setFunnelFilter([]);
     setCityFilter([]); setPriceFilter([]); setCategoryFilter([]); setBarrierFilter([]);
+    setCallTypeFilter([]); setVisitFilter([]); setNpsAgentFilter([]); setNpsBrandFilter([]);
+    setConvertedFilter([]);
     setStartDate(''); setEndDate('');
   };
 
@@ -275,29 +303,44 @@ export default function CallListPage() {
           />
 
           <div className="flex flex-wrap gap-3">
+              <FilterSelect value={cityFilter} onChange={setCityFilter}
+                options={citiesList} prefix="City" />
+
               <FilterSelect value={storeFilter} onChange={setStoreFilter}
                 options={['All', ...availableStores]} prefix="Store" />
+
+              <FilterSelect value={callTypeFilter} onChange={setCallTypeFilter}
+                options={callTypesList} prefix="Call Type" />
 
               <FilterSelect value={intentFilter} onChange={setIntentFilter}
                 options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Intent" />
 
+              <FilterSelect value={visitFilter} onChange={setVisitFilter}
+                options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Visit" />
+
               <FilterSelect value={expFilter} onChange={setExpFilter}
                 options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Exp" />
 
-              <FilterSelect value={funnelFilter} onChange={setFunnelFilter}
-                options={funnelStages} prefix="Funnel" />
+              <FilterSelect value={npsAgentFilter} onChange={setNpsAgentFilter}
+                options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Agent NPS" />
 
-              <FilterSelect value={cityFilter} onChange={setCityFilter}
-                options={citiesList} prefix="City" />
-
-              <FilterSelect value={priceFilter} onChange={setPriceFilter}
-                options={pricesList} prefix="Price" />
+              <FilterSelect value={npsBrandFilter} onChange={setNpsBrandFilter}
+                options={['All', 'HIGH', 'MEDIUM', 'LOW']} prefix="Brand NPS" />
 
               <FilterSelect value={categoryFilter} onChange={setCategoryFilter}
                 options={categoriesList} prefix="Category" />
 
+              <FilterSelect value={funnelFilter} onChange={setFunnelFilter}
+                options={funnelStages} prefix="Funnel" />
+
+              <FilterSelect value={priceFilter} onChange={setPriceFilter}
+                options={pricesList} prefix="Price" />
+
               <FilterSelect value={barrierFilter} onChange={setBarrierFilter}
                 options={barriersList} prefix="Barrier" />
+
+              <FilterSelect value={convertedFilter} onChange={setConvertedFilter}
+                options={['All', 'YES', 'NO']} prefix="Converted" />
 
               <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-2xl border border-gray-100 shadow-inner">
                   <div className="flex flex-col">

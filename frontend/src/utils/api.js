@@ -48,6 +48,20 @@ export function parseDate(dateStr) {
   return new Date(y, m - 1, d);
 }
 
+export function isConverted(record) {
+  const v = String(record?.is_converted ?? '').toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+export function npsBucket(score) {
+  if (score === null || score === undefined || score === '') return null;
+  const n = Number(score);
+  if (Number.isNaN(n)) return null;
+  if (n >= 8) return 'HIGH';
+  if (n >= 5) return 'MEDIUM';
+  return 'LOW';
+}
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 function apiUrl(path) {
