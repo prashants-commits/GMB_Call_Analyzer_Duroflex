@@ -7,6 +7,9 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:8000',
+      // Trainer WebSocket endpoints (mock-call audio in Group D). Forwarded so
+      // the React dev server proxies trainer WS the same way as /api.
+      '/ws': { target: 'ws://127.0.0.1:8000', ws: true, changeOrigin: true },
     },
   },
 })

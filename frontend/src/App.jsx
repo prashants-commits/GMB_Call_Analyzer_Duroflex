@@ -6,6 +6,15 @@ import InsightsDashboard from './pages/InsightsDashboard';
 import CallListPage from './pages/CallListPage';
 import CallDetailPage from './pages/CallDetailPage';
 import LoginPage from './pages/LoginPage';
+import TrainerHome from './pages/trainer/TrainerHome';
+import TrainerIdentify from './pages/trainer/TrainerIdentify';
+import TrainerAdmin from './pages/trainer/TrainerAdmin';
+import TrainerDisabled from './pages/trainer/TrainerDisabled';
+import StoreSwotPage from './pages/trainer/StoreSwotPage';
+import PersonaLibraryPage from './pages/trainer/admin/PersonaLibraryPage';
+import DrillPage from './pages/trainer/DrillPage';
+import ScoreCardPage from './pages/trainer/ScoreCardPage';
+import DrillsListPage from './pages/trainer/DrillsListPage';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
@@ -82,6 +91,78 @@ export default function App() {
           element={
             <ProtectedRoute>
               <CallDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer"
+          element={
+            <ProtectedRoute>
+              <TrainerHome />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/identify"
+          element={
+            <ProtectedRoute>
+              <TrainerIdentify />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/admin/*"
+          element={
+            <ProtectedRoute>
+              <TrainerAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/disabled"
+          element={
+            <ProtectedRoute>
+              <TrainerDisabled />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/swot/:storeName"
+          element={
+            <ProtectedRoute>
+              <StoreSwotPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/admin/personas"
+          element={
+            <ProtectedRoute>
+              <PersonaLibraryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/drill/:drillUuid"
+          element={
+            <ProtectedRoute>
+              <DrillPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/score-cards/:drillUuid"
+          element={
+            <ProtectedRoute>
+              <ScoreCardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trainer/drills"
+          element={
+            <ProtectedRoute>
+              <DrillsListPage />
             </ProtectedRoute>
           }
         />

@@ -13,9 +13,11 @@ import {
   Activity,
   DollarSign,
   Download,
-  Sparkles
+  Sparkles,
+  Headphones
 } from 'lucide-react';
 import { fetchAnalyticsData, parseDate, fetchExportData, isConverted, npsBucket, filtersToParams, paramsToFilters, buildFilteredUrl } from '../utils/api';
+import { checkTrainerEnabled } from '../utils/trainerApi';
 import cityStoreMapping from '../utils/city_store_mapping.json';
 import * as XLSX from 'xlsx';
 
@@ -26,6 +28,13 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [trainerEnabled, setTrainerEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkTrainerEnabled().then((ok) => { if (!cancelled) setTrainerEnabled(ok); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Hydrate filters from URL on first render. Subsequent state changes are
   // synced back to the URL via the useEffect below.
@@ -549,6 +558,21 @@ export default function AnalyticsDashboard() {
                 <p className="text-slate-500 font-medium">Aggregate intelligence across Google My Business call channels</p>
             </div>
             <div className="flex gap-4">
+                {trainerEnabled && (
+                    <Link
+                        to="/trainer"
+                        title="Practice live drills against AI customer personas"
+                        className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-700 border border-slate-700/80 shadow-xl shadow-slate-900/25 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:from-slate-800 hover:to-slate-600 hover:border-amber-400/40 hover:scale-[1.02] transition-all group no-underline"
+                    >
+                        {/* Subtle gold gleam — only visible on hover, hints at premium feature */}
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-amber-400/10 via-transparent to-transparent rounded-bl-full pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center gap-2 mb-1">
+                            <Headphones className="w-4 h-4 text-amber-300/90 group-hover:text-amber-200 transition-colors" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-300/90 group-hover:text-amber-200 transition-colors">AI Trainer</span>
+                        </div>
+                        <span className="text-lg font-black leading-none">Practice Drills</span>
+                    </Link>
+                )}
                 <Link
                     to="/insights"
                     className="bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-400 shadow-xl shadow-amber-500/30 text-white rounded-2xl px-5 py-3 flex flex-col items-start hover:from-amber-600 hover:to-orange-600 hover:scale-[1.02] transition-all group no-underline"

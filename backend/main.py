@@ -25,6 +25,19 @@ app.add_middleware(
 # Load data at startup
 store = CallDataStore()
 
+# ── AI Trainer subsystem (segregated; off by default) ────────────────────────
+# All trainer code lives under backend/trainer/. Mounted only when
+# TRAINER_ENABLED=true in .env. See AITrainer_TechPlan_v1.md A1+A2.
+from trainer.config import TRAINER_ENABLED  # noqa: E402
+
+if TRAINER_ENABLED:
+    from trainer.bootstrap import on_startup as _trainer_on_startup  # noqa: E402
+    from trainer.router import router as _trainer_router, ws_router as _trainer_ws_router  # noqa: E402
+
+    _trainer_on_startup(call_data_store=store)
+    app.include_router(_trainer_router)
+    app.include_router(_trainer_ws_router)
+
 
 # ── Request models ────────────────────────────────────────────────────────────
 

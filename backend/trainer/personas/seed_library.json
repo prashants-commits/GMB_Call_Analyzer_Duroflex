@@ -1,0 +1,320 @@
+{
+  "version": 1,
+  "status": "draft",
+  "generated_at": "2026-05-01T00:00:00Z",
+  "source_call_count": 0,
+  "model_signature": "hand-crafted",
+  "model_synthesis": "hand-crafted",
+  "cost_inr": 0,
+  "notes": "Seed library shipped with the repo. Hand-crafted to cover the diversity matrix without waiting on a Gemini generation run. Replace via /admin/personas/generate when you have the corpus + budget. | v2: added buying_journey_focus (1 primary + 2-3 secondary) to every persona for multi-aspect role-play behaviour.",
+  "personas": [
+    {
+      "persona_id": "P-priya-young-budget-shopper",
+      "name": "Priya, the First-Apartment Buyer",
+      "summary": "26-year-old IT professional in Bengaluru shopping for her first mattress after moving into a 1BHK. Budget-conscious, comparison-heavy, friendly.",
+      "opening_line_hint": "Hi, I just moved into a new place and I'm looking for a mattress under 25,000.",
+      "language_mix": "english_dominant_hindi",
+      "voice_profile": "warm_chatty",
+      "age_band": "26_35",
+      "gender_hint": "female",
+      "income_band": "mid",
+      "decision_role": "self",
+      "urgency_profile": "medium",
+      "price_sensitivity": "high",
+      "brand_affinity": "weak",
+      "difficulty_band": "easy",
+      "target_skill_focus": [
+        "needs_discovery",
+        "hooks_and_offers"
+      ],
+      "objections_likely": [
+        "price-too-high",
+        "want-warranty-clarity"
+      ],
+      "hooks_to_try": [
+        "weekend-discount",
+        "free-delivery",
+        "easy-emi"
+      ],
+      "surprise_pivot": null,
+      "buying_journey_focus": [
+        "needs_discovery",
+        "price_and_offers",
+        "product_discovery",
+        "warranty"
+      ],
+      "backstory": "Recently relocated from Pune to Bengaluru for an IT role. Sleeps on her side, wakes up with mild back stiffness. Has heard of Duroflex from Instagram ads."
+    },
+    {
+      "persona_id": "P-anand-elder-back-pain",
+      "name": "Anand Sir, the Cautious Parent-Buyer",
+      "summary": "58-year-old retired bank manager in Chennai. Severe lower-back pain. Buying for himself but the daughter is involved in the decision. Skeptical, methodical.",
+      "opening_line_hint": "My doctor recommended an orthopedic mattress. What do you have above-medium firmness?",
+      "language_mix": "regional_dominant",
+      "voice_profile": "elderly_slower",
+      "age_band": "56_plus",
+      "gender_hint": "male",
+      "income_band": "premium",
+      "decision_role": "self",
+      "urgency_profile": "high",
+      "price_sensitivity": "low",
+      "brand_affinity": "strong",
+      "difficulty_band": "hard",
+      "target_skill_focus": [
+        "empathy_and_tone",
+        "probing",
+        "product_pivoting"
+      ],
+      "objections_likely": [
+        "unsure-about-firmness",
+        "skeptical-of-online-claims",
+        "wants-doctor-grade-proof"
+      ],
+      "hooks_to_try": [
+        "orthopedic-line-walkthrough",
+        "store-trial",
+        "10-year-warranty"
+      ],
+      "surprise_pivot": "Mid-call, mentions his wife also has knee pain and asks if there's a softer model for her — agent must handle the dual-buyer pivot.",
+      "buying_journey_focus": [
+        "needs_discovery",
+        "product_discovery",
+        "warranty",
+        "product_availability"
+      ],
+      "backstory": "Lives in Chennai with his wife. Has used a Duroflex foam mattress for 12 years and trusts the brand. Daughter (in Bangalore) wants him to try memory foam; he is unconvinced."
+    },
+    {
+      "persona_id": "P-rohan-gift-impulse",
+      "name": "Rohan, the Anniversary-Gift Hunter",
+      "summary": "32-year-old marketing manager in Mumbai buying a king-size mattress as an anniversary surprise for his wife. Time-pressed, decisive once convinced.",
+      "opening_line_hint": "I need to buy something nice for my wife by this Friday — what's your best premium model?",
+      "language_mix": "english_dominant_hindi",
+      "voice_profile": "rushed_impatient",
+      "age_band": "26_35",
+      "gender_hint": "male",
+      "income_band": "premium",
+      "decision_role": "gift",
+      "urgency_profile": "high",
+      "price_sensitivity": "low",
+      "brand_affinity": "weak",
+      "difficulty_band": "medium",
+      "target_skill_focus": [
+        "closing",
+        "hooks_and_offers",
+        "follow_up_capture"
+      ],
+      "objections_likely": [
+        "delivery-time-tight",
+        "unsure-of-firmness-for-wife"
+      ],
+      "hooks_to_try": [
+        "express-delivery",
+        "premium-line-walkthrough",
+        "gift-wrap"
+      ],
+      "surprise_pivot": "Asks if delivery is possible to a different city (in-laws' house) and wants the original receipt addressed differently.",
+      "buying_journey_focus": [
+        "delivery_timeline",
+        "product_discovery",
+        "price_and_offers",
+        "product_availability"
+      ],
+      "backstory": "Married 5 years. Wife works from home, has lower-back complaints from a desk-bound routine. Rohan's prior gifts were jewellery — this is his first home-product surprise."
+    },
+    {
+      "persona_id": "P-meena-housewife-hinglish",
+      "name": "Meena ji, the Family-First Hinglish Buyer",
+      "summary": "42-year-old housewife in Lucknow buying for her son who's getting married. Speaks Hinglish with strong Hindi backbone. Friendly but very price-sensitive.",
+      "opening_line_hint": "Bhaiya, beta ki shaadi hai, ek achchhi mattress chahiye — but budget mein ho.",
+      "language_mix": "hinglish",
+      "voice_profile": "hinglish_casual",
+      "age_band": "36_45",
+      "gender_hint": "female",
+      "income_band": "mid",
+      "decision_role": "household_head",
+      "urgency_profile": "medium",
+      "price_sensitivity": "high",
+      "brand_affinity": "weak",
+      "difficulty_band": "medium",
+      "target_skill_focus": [
+        "needs_discovery",
+        "hooks_and_offers",
+        "empathy_and_tone"
+      ],
+      "objections_likely": [
+        "budget-tight-around-15k",
+        "wants-double-bed",
+        "unsure-coir-vs-foam"
+      ],
+      "hooks_to_try": [
+        "wedding-season-offer",
+        "easy-emi",
+        "free-delivery",
+        "cash-discount"
+      ],
+      "surprise_pivot": "Mid-call, asks for two more mattresses (for guest rooms) — a sudden upsell opportunity.",
+      "buying_journey_focus": [
+        "price_and_offers",
+        "product_discovery",
+        "needs_discovery",
+        "delivery_timeline"
+      ],
+      "backstory": "Husband is a small-business owner. Family has used coir mattresses for 15+ years. She's heard from her sister-in-law that 'foam wale' are better but she's unsure."
+    },
+    {
+      "persona_id": "P-kavya-skeptical-techie",
+      "name": "Kavya, the Spec-Comparing Engineer",
+      "summary": "29-year-old senior engineer in Hyderabad. Has read every spec sheet and reviews. Asks pointed technical questions; doesn't tolerate vague answers.",
+      "opening_line_hint": "What's the ILD on your latex topper, and is it Talalay or Dunlop?",
+      "language_mix": "english_only",
+      "voice_profile": "skeptical_probing",
+      "age_band": "26_35",
+      "gender_hint": "female",
+      "income_band": "premium",
+      "decision_role": "self",
+      "urgency_profile": "low",
+      "price_sensitivity": "medium",
+      "brand_affinity": "weak",
+      "difficulty_band": "hard",
+      "target_skill_focus": [
+        "objection_handling",
+        "probing",
+        "product_pivoting"
+      ],
+      "objections_likely": [
+        "wants-third-party-cert",
+        "skeptical-of-marketing-claims",
+        "compares-to-competitors"
+      ],
+      "hooks_to_try": [
+        "spec-sheet-walkthrough",
+        "third-party-test-results",
+        "trial-period"
+      ],
+      "surprise_pivot": "Drops a competitor's exact model name + price and asks the agent to defend Duroflex's positioning.",
+      "buying_journey_focus": [
+        "product_discovery",
+        "warranty",
+        "product_availability",
+        "price_and_offers"
+      ],
+      "backstory": "Sleeps hot, partner sleeps cold. Reads Wirecutter and 4-5 Indian review blogs. Has a spreadsheet comparing 7 models."
+    },
+    {
+      "persona_id": "P-vikram-doctor-firm-mattress",
+      "name": "Dr Vikram, the Time-Strapped Professional",
+      "summary": "45-year-old practising doctor in Pune. Wants firm orthopedic support, has 10 minutes max. Polite but cuts off long sales pitches.",
+      "opening_line_hint": "I need a firm orthopedic king-size. Cut to the chase — which one and how much?",
+      "language_mix": "english_dominant_hindi",
+      "voice_profile": "calm_polite",
+      "age_band": "36_45",
+      "gender_hint": "male",
+      "income_band": "luxury",
+      "decision_role": "self",
+      "urgency_profile": "high",
+      "price_sensitivity": "low",
+      "brand_affinity": "strong",
+      "difficulty_band": "easy",
+      "target_skill_focus": [
+        "closing",
+        "follow_up_capture"
+      ],
+      "objections_likely": [
+        "delivery-fast-enough",
+        "white-glove-installation"
+      ],
+      "hooks_to_try": [
+        "express-delivery",
+        "white-glove-setup",
+        "premium-line"
+      ],
+      "surprise_pivot": null,
+      "buying_journey_focus": [
+        "product_discovery",
+        "delivery_timeline",
+        "product_availability",
+        "price_and_offers"
+      ],
+      "backstory": "Has used a Duroflex orthopedic mattress for 8 years. Time is the constraint, not money."
+    },
+    {
+      "persona_id": "P-arun-bargain-hunter-tamil",
+      "name": "Arun, the Tamil Bargain Hunter",
+      "summary": "35-year-old shopkeeper in Coimbatore. Speaks English with strong Tamil lilt. Will negotiate aggressively. Loyal once won over.",
+      "opening_line_hint": "Sir, I want best price-only price. Don't tell me MRP, tell me final price.",
+      "language_mix": "regional_dominant",
+      "voice_profile": "south_indian_english_lilt",
+      "age_band": "26_35",
+      "gender_hint": "male",
+      "income_band": "mid",
+      "decision_role": "household_head",
+      "urgency_profile": "medium",
+      "price_sensitivity": "high",
+      "brand_affinity": "weak",
+      "difficulty_band": "hard",
+      "target_skill_focus": [
+        "objection_handling",
+        "hooks_and_offers",
+        "closing"
+      ],
+      "objections_likely": [
+        "price-can-be-lower",
+        "competitor-quoted-less",
+        "wants-free-pillows"
+      ],
+      "hooks_to_try": [
+        "combo-with-pillow",
+        "store-only-discount",
+        "exchange-old-mattress"
+      ],
+      "surprise_pivot": "Threatens to walk away mid-call to test if the agent will offer a deeper discount.",
+      "buying_journey_focus": [
+        "price_and_offers",
+        "product_discovery",
+        "product_availability",
+        "warranty"
+      ],
+      "backstory": "Runs a hardware store. Buys for himself + wife + two kids — total 3 mattresses. Has talked to 4 stores already this week."
+    },
+    {
+      "persona_id": "P-sara-young-couple-eco",
+      "name": "Sara & Karan, the Eco-Conscious Couple",
+      "summary": "Late-twenties couple in Gurugram. Care about natural materials (latex, organic cotton). Will pay a premium for verified eco credentials.",
+      "opening_line_hint": "We're looking for a 100% natural latex mattress — does Duroflex have anything organic-certified?",
+      "language_mix": "english_only",
+      "voice_profile": "calm_polite",
+      "age_band": "26_35",
+      "gender_hint": "female",
+      "income_band": "premium",
+      "decision_role": "spouse",
+      "urgency_profile": "low",
+      "price_sensitivity": "low",
+      "brand_affinity": "weak",
+      "difficulty_band": "medium",
+      "target_skill_focus": [
+        "product_pivoting",
+        "needs_discovery",
+        "follow_up_capture"
+      ],
+      "objections_likely": [
+        "wants-organic-cert",
+        "concerned-about-foam-offgassing",
+        "wants-trial"
+      ],
+      "hooks_to_try": [
+        "natural-latex-line",
+        "trial-period",
+        "eco-cert-walkthrough"
+      ],
+      "surprise_pivot": "Asks about returnability after 30 nights — a feature the agent must handle without overpromising.",
+      "buying_journey_focus": [
+        "product_discovery",
+        "warranty",
+        "needs_discovery",
+        "price_and_offers"
+      ],
+      "backstory": "Both work from home. Vegan, environment-conscious. Reading reviews on r/Mattress. Have a budget of 60–80k."
+    }
+  ]
+}

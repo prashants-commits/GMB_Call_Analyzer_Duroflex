@@ -1,1 +1,54 @@
+# ── Editor / IDE ────────────────────────────────────────────────────────────
 .claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local virtual envs — every developer creates their own.
+backend/venv/
+backend/.venv/
+.venv/
+
+# ── Node ────────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.npm-cache/
+frontend/dist/
+frontend/.vite/
+node_modules/
+
+# ── Env files (may contain secrets) ────────────────────────────────────────
+backend/.env
+.env
+.env.local
+.env.*.local
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── AI Trainer subsystem runtime data ───────────────────────────────────────
+# Drill audio is short-lived (default 90d retention) and large; never commit.
+backend/data/trainer/audio/*
+!backend/data/trainer/audio/.gitkeep
+# Trainer state CSVs / parquet / jsonl are environment-specific.
+backend/data/trainer/*.csv
+backend/data/trainer/*.parquet
+backend/data/trainer/*.jsonl
+backend/data/trainer/*.json
+# Persisted score-card payloads (one JSON per drill).
+backend/data/trainer/scorecards/
+# Diagnostic logs.
+backend/data/trainer/*.log

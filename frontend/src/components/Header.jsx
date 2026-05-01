@@ -1,7 +1,16 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { checkTrainerEnabled } from '../utils/trainerApi';
 
 export default function Header() {
+  const [trainerEnabled, setTrainerEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkTrainerEnabled().then((ok) => { if (!cancelled) setTrainerEnabled(ok); });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-[1800px] mx-auto px-8 h-20 flex items-center justify-between">
@@ -19,6 +28,7 @@ export default function Header() {
             <HeaderLink to="/" label="Dashboard" active />
             <HeaderLink to="/" label="All Calls" />
             <HeaderLink to="/" label="Reports" />
+            {trainerEnabled && <HeaderLink to="/trainer" label="🎯 AI Trainer" />}
           </nav>
           <div className="h-8 w-px bg-gray-200 mx-2 hidden md:block"></div>
           <button 
