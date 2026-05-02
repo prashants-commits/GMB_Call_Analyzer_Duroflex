@@ -208,9 +208,8 @@ export default function AnalyticsDashboard() {
     const probingWhomPerc = total > 0 ? ((probingWhomCount / total) * 100).toFixed(0) : "0";
     const videoDemoPerc = total > 0 ? ((videoCount / total) * 100).toFixed(0) : "0";
 
-    // Bad calls: High Intent but Low Agent NPS/CX
-    // Let's define Low as MEDIUM or LOW (anything not HIGH)
-    const badCalls = filteredCalls.filter(r => r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH');
+    // Bad calls: any call where Agent Experience Rating = LOW
+    const badCalls = filteredCalls.filter(r => r.experience_rating === 'LOW');
 
     // Matrix counts (Purchas Intent x Agent NPS)
     const matrix = {
@@ -241,7 +240,7 @@ export default function AnalyticsDashboard() {
         }
         const c = cityMap[city];
         c.calls++;
-        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') c.badCalls++;
+        if (r.experience_rating === 'LOW') c.badCalls++;
         c.sumAgent += r.nps_agent;
         c.sumBrand += r.nps_brand;
         c.countNps++;
@@ -274,7 +273,7 @@ export default function AnalyticsDashboard() {
         }
         const s = storeMap[r.store_name];
         s.calls++;
-        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') s.badCalls++;
+        if (r.experience_rating === 'LOW') s.badCalls++;
         s.sumAgent += r.nps_agent;
         s.sumBrand += r.nps_brand;
         s.countNps++;
@@ -312,7 +311,7 @@ export default function AnalyticsDashboard() {
         }
         const b = priceMap[bucket];
         b.calls++;
-        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') b.badCalls++;
+        if (r.experience_rating === 'LOW') b.badCalls++;
         b.sumAgent += r.nps_agent;
         b.sumBrand += r.nps_brand;
         b.countNps++;
@@ -345,7 +344,7 @@ export default function AnalyticsDashboard() {
         }
         const c = categoryMap[cat];
         c.calls++;
-        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') c.badCalls++;
+        if (r.experience_rating === 'LOW') c.badCalls++;
         c.sumAgent += r.nps_agent;
         c.sumBrand += r.nps_brand;
         c.countNps++;
@@ -378,7 +377,7 @@ export default function AnalyticsDashboard() {
         }
         const a = barrierMap[barrier];
         a.calls++;
-        if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') a.badCalls++;
+        if (r.experience_rating === 'LOW') a.badCalls++;
         a.sumAgent += r.nps_agent;
         a.sumBrand += r.nps_brand;
         a.countNps++;

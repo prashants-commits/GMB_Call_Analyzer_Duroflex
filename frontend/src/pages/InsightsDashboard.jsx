@@ -1,8 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download, BarChart3 } from 'lucide-react';
-import { fetchAnalyticsData, parseDate, generateInsightsReport } from '../utils/api';
+import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download, BarChart3, Phone, Target, Footprints, Star, Users, Award, Activity, DollarSign, CheckCircle } from 'lucide-react';
+import { fetchAnalyticsData, parseDate, generateInsightsReport, npsBucket, isConverted } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
+
+// Default Call Type filter — preserves Insights Dashboard's pre-existing
+// behavior of looking only at pre-purchase calls. Users can widen via the
+// Call Type dropdown.
+const DEFAULT_CALL_TYPES = ['PRE_PURCHASE (Pre Store Visit)', 'PRE_PURCHASE (Post Store Visit)'];
+const RATING_OPTIONS = ['HIGH', 'MEDIUM', 'LOW'];
+const CONVERTED_OPTIONS = ['YES', 'NO'];
 
 export default function InsightsDashboard() {
     const navigate = useNavigate();
@@ -16,16 +23,34 @@ export default function InsightsDashboard() {
     // Filters Set A
     const [selectedCities, setSelectedCities] = useState([]);
     const [selectedStores, setSelectedStores] = useState([]);
+    const [selectedCallTypes, setSelectedCallTypes] = useState(DEFAULT_CALL_TYPES);
+    const [selectedIntents, setSelectedIntents] = useState([]);
+    const [selectedVisits, setSelectedVisits] = useState([]);
+    const [selectedExperiences, setSelectedExperiences] = useState([]);
+    const [selectedAgentNps, setSelectedAgentNps] = useState([]);
+    const [selectedBrandNps, setSelectedBrandNps] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedFunnels, setSelectedFunnels] = useState([]);
+    const [selectedPrices, setSelectedPrices] = useState([]);
     const [selectedBarriers, setSelectedBarriers] = useState([]);
+    const [selectedConverted, setSelectedConverted] = useState([]);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
     // Filters Set B (for Compare mode)
     const [selectedCitiesB, setSelectedCitiesB] = useState([]);
     const [selectedStoresB, setSelectedStoresB] = useState([]);
+    const [selectedCallTypesB, setSelectedCallTypesB] = useState(DEFAULT_CALL_TYPES);
+    const [selectedIntentsB, setSelectedIntentsB] = useState([]);
+    const [selectedVisitsB, setSelectedVisitsB] = useState([]);
+    const [selectedExperiencesB, setSelectedExperiencesB] = useState([]);
+    const [selectedAgentNpsB, setSelectedAgentNpsB] = useState([]);
+    const [selectedBrandNpsB, setSelectedBrandNpsB] = useState([]);
     const [selectedCategoriesB, setSelectedCategoriesB] = useState([]);
+    const [selectedFunnelsB, setSelectedFunnelsB] = useState([]);
+    const [selectedPricesB, setSelectedPricesB] = useState([]);
     const [selectedBarriersB, setSelectedBarriersB] = useState([]);
+    const [selectedConvertedB, setSelectedConvertedB] = useState([]);
     const [startDateB, setStartDateB] = useState('');
     const [endDateB, setEndDateB] = useState('');
 
@@ -51,19 +76,28 @@ export default function InsightsDashboard() {
     const filterOptions = useMemo(() => {
         const cities = new Set();
         const stores = new Set();
+        const callTypes = new Set();
         const categories = new Set();
+        const funnels = new Set();
+        const prices = new Set();
         const barriers = new Set();
         data.reports.forEach(r => {
             if (r.city) cities.add(r.city);
             if (r.store_name) stores.add(r.store_name);
+            if (r.call_type) callTypes.add(r.call_type);
             if (r.product_category) categories.add(r.product_category);
+            if (r.funnel_stage) funnels.add(r.funnel_stage);
+            if (r.price_bucket) prices.add(r.price_bucket);
             if (r.purchase_barrier) barriers.add(r.purchase_barrier);
         });
         return {
             cities: [...cities].sort(),
             stores: [...stores].sort(),
+            callTypes: [...callTypes].sort(),
             categories: [...categories].sort(),
-            barriers: [...barriers].sort()
+            funnels: [...funnels].sort(),
+            prices: [...prices].sort(),
+            barriers: [...barriers].sort(),
         };
     }, [data.reports]);
 
@@ -110,13 +144,24 @@ export default function InsightsDashboard() {
     // Filtered calls Set A
     const filteredCalls = useMemo(() => {
         return data.reports.filter(r => {
-            if (r.call_type !== 'PRE_PURCHASE (Pre Store Visit)' && r.call_type !== 'PRE_PURCHASE (Post Store Visit)') {
-                return false;
-            }
+            if (selectedCallTypes.length > 0 && !selectedCallTypes.includes(r.call_type)) return false;
             if (selectedCities.length > 0 && !selectedCities.includes(r.city)) return false;
             if (selectedStores.length > 0 && !selectedStores.includes(r.store_name)) return false;
+            if (selectedIntents.length > 0 && !selectedIntents.includes(r.intent_rating)) return false;
+            if (selectedVisits.length > 0 && !selectedVisits.includes(r.visit_rating)) return false;
+            if (selectedExperiences.length > 0 && !selectedExperiences.includes(r.experience_rating)) return false;
+            if (selectedAgentNps.length > 0 && !selectedAgentNps.includes(npsBucket(r.nps_agent))) return false;
+            if (selectedBrandNps.length > 0 && !selectedBrandNps.includes(npsBucket(r.nps_brand))) return false;
             if (selectedCategories.length > 0 && !selectedCategories.includes(r.product_category)) return false;
+            if (selectedFunnels.length > 0 && !selectedFunnels.includes(r.funnel_stage)) return false;
+            if (selectedPrices.length > 0 && !selectedPrices.includes(r.price_bucket)) return false;
             if (selectedBarriers.length > 0 && !selectedBarriers.includes(r.purchase_barrier)) return false;
+            if (selectedConverted.length > 0) {
+                const conv = isConverted(r);
+                const wantYes = selectedConverted.includes('YES');
+                const wantNo = selectedConverted.includes('NO');
+                if (!((wantYes && conv) || (wantNo && !conv))) return false;
+            }
 
             if (startDate || endDate) {
                 const d = parseDate(r.call_date);
@@ -134,18 +179,29 @@ export default function InsightsDashboard() {
             }
             return true;
         });
-    }, [data.reports, selectedCities, selectedStores, selectedCategories, selectedBarriers, startDate, endDate]);
+    }, [data.reports, selectedCallTypes, selectedCities, selectedStores, selectedIntents, selectedVisits, selectedExperiences, selectedAgentNps, selectedBrandNps, selectedCategories, selectedFunnels, selectedPrices, selectedBarriers, selectedConverted, startDate, endDate]);
 
     // Filtered calls Set B
     const filteredCallsB = useMemo(() => {
         return data.reports.filter(r => {
-            if (r.call_type !== 'PRE_PURCHASE (Pre Store Visit)' && r.call_type !== 'PRE_PURCHASE (Post Store Visit)') {
-                return false;
-            }
+            if (selectedCallTypesB.length > 0 && !selectedCallTypesB.includes(r.call_type)) return false;
             if (selectedCitiesB.length > 0 && !selectedCitiesB.includes(r.city)) return false;
             if (selectedStoresB.length > 0 && !selectedStoresB.includes(r.store_name)) return false;
+            if (selectedIntentsB.length > 0 && !selectedIntentsB.includes(r.intent_rating)) return false;
+            if (selectedVisitsB.length > 0 && !selectedVisitsB.includes(r.visit_rating)) return false;
+            if (selectedExperiencesB.length > 0 && !selectedExperiencesB.includes(r.experience_rating)) return false;
+            if (selectedAgentNpsB.length > 0 && !selectedAgentNpsB.includes(npsBucket(r.nps_agent))) return false;
+            if (selectedBrandNpsB.length > 0 && !selectedBrandNpsB.includes(npsBucket(r.nps_brand))) return false;
             if (selectedCategoriesB.length > 0 && !selectedCategoriesB.includes(r.product_category)) return false;
+            if (selectedFunnelsB.length > 0 && !selectedFunnelsB.includes(r.funnel_stage)) return false;
+            if (selectedPricesB.length > 0 && !selectedPricesB.includes(r.price_bucket)) return false;
             if (selectedBarriersB.length > 0 && !selectedBarriersB.includes(r.purchase_barrier)) return false;
+            if (selectedConvertedB.length > 0) {
+                const conv = isConverted(r);
+                const wantYes = selectedConvertedB.includes('YES');
+                const wantNo = selectedConvertedB.includes('NO');
+                if (!((wantYes && conv) || (wantNo && !conv))) return false;
+            }
 
             if (startDateB || endDateB) {
                 const d = parseDate(r.call_date);
@@ -163,18 +219,40 @@ export default function InsightsDashboard() {
             }
             return true;
         });
-    }, [data.reports, selectedCitiesB, selectedStoresB, selectedCategoriesB, selectedBarriersB, startDateB, endDateB]);
+    }, [data.reports, selectedCallTypesB, selectedCitiesB, selectedStoresB, selectedIntentsB, selectedVisitsB, selectedExperiencesB, selectedAgentNpsB, selectedBrandNpsB, selectedCategoriesB, selectedFunnelsB, selectedPricesB, selectedBarriersB, selectedConvertedB, startDateB, endDateB]);
 
     const isOverCap = filteredCalls.length > 250 || (mode === 'compare' && filteredCallsB.length > 250);
     const isEmpty = filteredCalls.length === 0 || (mode === 'compare' && filteredCallsB.length === 0);
 
-    const buildSegmentDesc = (cities, stores, categories, barriers) => {
+    const buildSegmentDesc = (f) => {
         const parts = [];
-        if (cities.length) parts.push(`Cities: ${cities.join(', ')}`);
-        if (stores.length) parts.push(`Stores: ${stores.join(', ')}`);
-        if (categories.length) parts.push(`Categories: ${categories.join(', ')}`);
-        if (barriers.length) parts.push(`Barriers: ${barriers.join(', ')}`);
+        if (f.cities?.length) parts.push(`Cities: ${f.cities.join(', ')}`);
+        if (f.stores?.length) parts.push(`Stores: ${f.stores.join(', ')}`);
+        if (f.callTypes?.length) parts.push(`Call Types: ${f.callTypes.join(', ')}`);
+        if (f.intents?.length) parts.push(`Purchase Intent: ${f.intents.join(', ')}`);
+        if (f.visits?.length) parts.push(`Visit Intent: ${f.visits.join(', ')}`);
+        if (f.experiences?.length) parts.push(`Experience: ${f.experiences.join(', ')}`);
+        if (f.agentNps?.length) parts.push(`Agent NPS: ${f.agentNps.join(', ')}`);
+        if (f.brandNps?.length) parts.push(`Brand NPS: ${f.brandNps.join(', ')}`);
+        if (f.categories?.length) parts.push(`Categories: ${f.categories.join(', ')}`);
+        if (f.funnels?.length) parts.push(`Funnel: ${f.funnels.join(', ')}`);
+        if (f.prices?.length) parts.push(`Price Bucket: ${f.prices.join(', ')}`);
+        if (f.barriers?.length) parts.push(`Barriers: ${f.barriers.join(', ')}`);
+        if (f.converted?.length) parts.push(`Converted: ${f.converted.join(', ')}`);
         return parts.length ? parts.join(' | ') : 'All segments (no filters applied)';
+    };
+
+    const segmentA = {
+        cities: selectedCities, stores: selectedStores, callTypes: selectedCallTypes,
+        intents: selectedIntents, visits: selectedVisits, experiences: selectedExperiences,
+        agentNps: selectedAgentNps, brandNps: selectedBrandNps, categories: selectedCategories,
+        funnels: selectedFunnels, prices: selectedPrices, barriers: selectedBarriers, converted: selectedConverted,
+    };
+    const segmentB = {
+        cities: selectedCitiesB, stores: selectedStoresB, callTypes: selectedCallTypesB,
+        intents: selectedIntentsB, visits: selectedVisitsB, experiences: selectedExperiencesB,
+        agentNps: selectedAgentNpsB, brandNps: selectedBrandNpsB, categories: selectedCategoriesB,
+        funnels: selectedFunnelsB, prices: selectedPricesB, barriers: selectedBarriersB, converted: selectedConvertedB,
     };
 
     const buildDateRange = (sDate, eDate) => {
@@ -190,7 +268,7 @@ export default function InsightsDashboard() {
         setReport(null);
 
         const cleanNumbers = filteredCalls.map(r => r.clean_number);
-        const descA = buildSegmentDesc(selectedCities, selectedStores, selectedCategories, selectedBarriers);
+        const descA = buildSegmentDesc(segmentA);
         const dateA = buildDateRange(startDate, endDate);
 
         let cleanNumbersB = null;
@@ -199,7 +277,7 @@ export default function InsightsDashboard() {
 
         if (mode === 'compare') {
             cleanNumbersB = filteredCallsB.map(r => r.clean_number);
-            descB = buildSegmentDesc(selectedCitiesB, selectedStoresB, selectedCategoriesB, selectedBarriersB);
+            descB = buildSegmentDesc(segmentB);
             dateB = buildDateRange(startDateB, endDateB);
         }
 
@@ -284,41 +362,44 @@ export default function InsightsDashboard() {
                     )}
                     <div className="flex flex-wrap gap-4 items-end pt-2">
 
-                        {/* City Filter */}
-                        <FilterDropdown
-                            label="City"
-                            icon={<MapPin className="w-4 h-4 text-emerald-500" />}
-                            options={filterOptions.cities}
-                            selected={selectedCities}
-                            setSelected={setSelectedCities}
-                        />
+                        <FilterDropdown label="City" icon={<MapPin className="w-4 h-4 text-emerald-500" />}
+                            options={filterOptions.cities} selected={selectedCities} setSelected={setSelectedCities} />
 
-                        {/* Store Filter */}
-                        <FilterDropdown
-                            label="Store"
-                            icon={<Building2 className="w-4 h-4 text-indigo-500" />}
-                            options={availableStores}
-                            selected={selectedStores}
-                            setSelected={setSelectedStores}
-                        />
+                        <FilterDropdown label="Store" icon={<Building2 className="w-4 h-4 text-indigo-500" />}
+                            options={availableStores} selected={selectedStores} setSelected={setSelectedStores} />
 
-                        {/* Product Category Filter */}
-                        <FilterDropdown
-                            label="Product Category"
-                            icon={<ShoppingCart className="w-4 h-4 text-sky-500" />}
-                            options={filterOptions.categories}
-                            selected={selectedCategories}
-                            setSelected={setSelectedCategories}
-                        />
+                        <FilterDropdown label="Call Type" icon={<Phone className="w-4 h-4 text-slate-500" />}
+                            options={filterOptions.callTypes} selected={selectedCallTypes} setSelected={setSelectedCallTypes} />
 
-                        {/* Purchase Barrier Filter */}
-                        <FilterDropdown
-                            label="Purchase Barrier"
-                            icon={<TrendingDown className="w-4 h-4 text-rose-500" />}
-                            options={filterOptions.barriers}
-                            selected={selectedBarriers}
-                            setSelected={setSelectedBarriers}
-                        />
+                        <FilterDropdown label="Purchase Intent" icon={<Target className="w-4 h-4 text-rose-500" />}
+                            options={RATING_OPTIONS} selected={selectedIntents} setSelected={setSelectedIntents} />
+
+                        <FilterDropdown label="Visit Intent" icon={<Footprints className="w-4 h-4 text-amber-500" />}
+                            options={RATING_OPTIONS} selected={selectedVisits} setSelected={setSelectedVisits} />
+
+                        <FilterDropdown label="Experience" icon={<Star className="w-4 h-4 text-yellow-500" />}
+                            options={RATING_OPTIONS} selected={selectedExperiences} setSelected={setSelectedExperiences} />
+
+                        <FilterDropdown label="Agent NPS" icon={<Users className="w-4 h-4 text-violet-500" />}
+                            options={RATING_OPTIONS} selected={selectedAgentNps} setSelected={setSelectedAgentNps} />
+
+                        <FilterDropdown label="Brand NPS" icon={<Award className="w-4 h-4 text-fuchsia-500" />}
+                            options={RATING_OPTIONS} selected={selectedBrandNps} setSelected={setSelectedBrandNps} />
+
+                        <FilterDropdown label="Category" icon={<ShoppingCart className="w-4 h-4 text-sky-500" />}
+                            options={filterOptions.categories} selected={selectedCategories} setSelected={setSelectedCategories} />
+
+                        <FilterDropdown label="Funnel Stage" icon={<Activity className="w-4 h-4 text-cyan-500" />}
+                            options={filterOptions.funnels} selected={selectedFunnels} setSelected={setSelectedFunnels} />
+
+                        <FilterDropdown label="Price Bucket" icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
+                            options={filterOptions.prices} selected={selectedPrices} setSelected={setSelectedPrices} />
+
+                        <FilterDropdown label="Purchase Barrier" icon={<TrendingDown className="w-4 h-4 text-rose-500" />}
+                            options={filterOptions.barriers} selected={selectedBarriers} setSelected={setSelectedBarriers} />
+
+                        <FilterDropdown label="Converted" icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}
+                            options={CONVERTED_OPTIONS} selected={selectedConverted} setSelected={setSelectedConverted} />
 
                         {/* Date Range */}
                         <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
@@ -345,13 +426,22 @@ export default function InsightsDashboard() {
                             </div>
                         </div>
 
-                        {/* Reset */}
+                        {/* Reset — restores all filters to defaults (Call Type → PRE_PURCHASE pair) */}
                         <button
                             onClick={() => {
                                 setSelectedCities([]);
                                 setSelectedStores([]);
+                                setSelectedCallTypes(DEFAULT_CALL_TYPES);
+                                setSelectedIntents([]);
+                                setSelectedVisits([]);
+                                setSelectedExperiences([]);
+                                setSelectedAgentNps([]);
+                                setSelectedBrandNps([]);
                                 setSelectedCategories([]);
+                                setSelectedFunnels([]);
+                                setSelectedPrices([]);
                                 setSelectedBarriers([]);
+                                setSelectedConverted([]);
                                 setStartDate('');
                                 setEndDate('');
                             }}
@@ -370,41 +460,44 @@ export default function InsightsDashboard() {
                         </div>
                         <div className="flex flex-wrap gap-4 items-end pt-2">
 
-                            {/* City Filter */}
-                            <FilterDropdown
-                                label="City"
-                                icon={<MapPin className="w-4 h-4 text-emerald-500" />}
-                                options={filterOptions.cities}
-                                selected={selectedCitiesB}
-                                setSelected={setSelectedCitiesB}
-                            />
+                            <FilterDropdown label="City" icon={<MapPin className="w-4 h-4 text-emerald-500" />}
+                                options={filterOptions.cities} selected={selectedCitiesB} setSelected={setSelectedCitiesB} />
 
-                            {/* Store Filter */}
-                            <FilterDropdown
-                                label="Store"
-                                icon={<Building2 className="w-4 h-4 text-indigo-500" />}
-                                options={availableStoresB}
-                                selected={selectedStoresB}
-                                setSelected={setSelectedStoresB}
-                            />
+                            <FilterDropdown label="Store" icon={<Building2 className="w-4 h-4 text-indigo-500" />}
+                                options={availableStoresB} selected={selectedStoresB} setSelected={setSelectedStoresB} />
 
-                            {/* Product Category Filter */}
-                            <FilterDropdown
-                                label="Product Category"
-                                icon={<ShoppingCart className="w-4 h-4 text-sky-500" />}
-                                options={filterOptions.categories}
-                                selected={selectedCategoriesB}
-                                setSelected={setSelectedCategoriesB}
-                            />
+                            <FilterDropdown label="Call Type" icon={<Phone className="w-4 h-4 text-slate-500" />}
+                                options={filterOptions.callTypes} selected={selectedCallTypesB} setSelected={setSelectedCallTypesB} />
 
-                            {/* Purchase Barrier Filter */}
-                            <FilterDropdown
-                                label="Purchase Barrier"
-                                icon={<TrendingDown className="w-4 h-4 text-rose-500" />}
-                                options={filterOptions.barriers}
-                                selected={selectedBarriersB}
-                                setSelected={setSelectedBarriersB}
-                            />
+                            <FilterDropdown label="Purchase Intent" icon={<Target className="w-4 h-4 text-rose-500" />}
+                                options={RATING_OPTIONS} selected={selectedIntentsB} setSelected={setSelectedIntentsB} />
+
+                            <FilterDropdown label="Visit Intent" icon={<Footprints className="w-4 h-4 text-amber-500" />}
+                                options={RATING_OPTIONS} selected={selectedVisitsB} setSelected={setSelectedVisitsB} />
+
+                            <FilterDropdown label="Experience" icon={<Star className="w-4 h-4 text-yellow-500" />}
+                                options={RATING_OPTIONS} selected={selectedExperiencesB} setSelected={setSelectedExperiencesB} />
+
+                            <FilterDropdown label="Agent NPS" icon={<Users className="w-4 h-4 text-violet-500" />}
+                                options={RATING_OPTIONS} selected={selectedAgentNpsB} setSelected={setSelectedAgentNpsB} />
+
+                            <FilterDropdown label="Brand NPS" icon={<Award className="w-4 h-4 text-fuchsia-500" />}
+                                options={RATING_OPTIONS} selected={selectedBrandNpsB} setSelected={setSelectedBrandNpsB} />
+
+                            <FilterDropdown label="Category" icon={<ShoppingCart className="w-4 h-4 text-sky-500" />}
+                                options={filterOptions.categories} selected={selectedCategoriesB} setSelected={setSelectedCategoriesB} />
+
+                            <FilterDropdown label="Funnel Stage" icon={<Activity className="w-4 h-4 text-cyan-500" />}
+                                options={filterOptions.funnels} selected={selectedFunnelsB} setSelected={setSelectedFunnelsB} />
+
+                            <FilterDropdown label="Price Bucket" icon={<DollarSign className="w-4 h-4 text-emerald-600" />}
+                                options={filterOptions.prices} selected={selectedPricesB} setSelected={setSelectedPricesB} />
+
+                            <FilterDropdown label="Purchase Barrier" icon={<TrendingDown className="w-4 h-4 text-rose-500" />}
+                                options={filterOptions.barriers} selected={selectedBarriersB} setSelected={setSelectedBarriersB} />
+
+                            <FilterDropdown label="Converted" icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}
+                                options={CONVERTED_OPTIONS} selected={selectedConvertedB} setSelected={setSelectedConvertedB} />
 
                             {/* Date Range */}
                             <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
@@ -431,13 +524,22 @@ export default function InsightsDashboard() {
                                 </div>
                             </div>
 
-                            {/* Reset */}
+                            {/* Reset — restores all filters to defaults (Call Type → PRE_PURCHASE pair) */}
                             <button
                                 onClick={() => {
                                     setSelectedCitiesB([]);
                                     setSelectedStoresB([]);
+                                    setSelectedCallTypesB(DEFAULT_CALL_TYPES);
+                                    setSelectedIntentsB([]);
+                                    setSelectedVisitsB([]);
+                                    setSelectedExperiencesB([]);
+                                    setSelectedAgentNpsB([]);
+                                    setSelectedBrandNpsB([]);
                                     setSelectedCategoriesB([]);
+                                    setSelectedFunnelsB([]);
+                                    setSelectedPricesB([]);
                                     setSelectedBarriersB([]);
+                                    setSelectedConvertedB([]);
                                     setStartDateB('');
                                     setEndDateB('');
                                 }}
@@ -587,10 +689,10 @@ export default function InsightsDashboard() {
                                 </h2>
                                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
                                     {mode === 'compare' ? (
-                                        <>Set A: {buildSegmentDesc(selectedCities, selectedStores, selectedCategories, selectedBarriers)} | {buildDateRange(startDate, endDate)} ({filteredCalls.length} calls) <br/> 
-                                        Set B: {buildSegmentDesc(selectedCitiesB, selectedStoresB, selectedCategoriesB, selectedBarriersB)} | {buildDateRange(startDateB, endDateB)} ({filteredCallsB.length} calls)</>
+                                        <>Set A: {buildSegmentDesc(segmentA)} | {buildDateRange(startDate, endDate)} ({filteredCalls.length} calls) <br/>
+                                        Set B: {buildSegmentDesc(segmentB)} | {buildDateRange(startDateB, endDateB)} ({filteredCallsB.length} calls)</>
                                     ) : (
-                                        <>{buildSegmentDesc(selectedCities, selectedStores, selectedCategories, selectedBarriers)} · {buildDateRange(startDate, endDate)} · {filteredCalls.length} calls analysed</>
+                                        <>{buildSegmentDesc(segmentA)} · {buildDateRange(startDate, endDate)} · {filteredCalls.length} calls analysed</>
                                     )}
                                 </p>
                             </div>

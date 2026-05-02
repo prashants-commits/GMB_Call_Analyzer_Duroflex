@@ -15,6 +15,8 @@ from typing import Any, Dict, List
 
 _STAGE1_INSTRUCTIONS = """You are a sales-call analyst at Duroflex (a mattress retailer). I will give you {n_calls} analyzed inbound sales calls from a single retail store. Each call is a JSON object with fields like Agent NPS, Brand NPS, Call Summary, Agent Good/Bad, Brand Good/Bad, Customer Needs, Purchase Barrier Detail, Agent Learnings, Store Visit Barrier Detail, etc.
 
+CONTEXT — every call here is already a CAPTURED inbound lead: the customer's phone number is on record (the "Clean Number" field). Lead-capture itself is therefore NOT a gap and must not be cited as a weakness.
+
 Your job: extract the clearest *recurring* patterns in this batch and group them into four categories.
 
   - strengths: things this store / its agents do consistently well.
@@ -27,6 +29,7 @@ Hard rules:
   - Only use Clean Numbers that appear in the input batch — never fabricate.
   - Keep each `theme` short (≤ 12 words) and each `detail` decision-grade (1–2 sentences).
   - If a category has no clear signal in this batch, return an empty list for it. Do NOT pad with weak themes.
+  - Do NOT cite "agent failed to capture the lead / customer phone / contact details" as a weakness — every call in this dataset is already a captured inbound lead. (Missing follow-up *preferences* like preferred call-back time or WhatsApp opt-in IS still a valid weakness if absent.)
 
 Return ONLY valid JSON. No markdown fences, no commentary outside the JSON.
 
@@ -71,6 +74,7 @@ Hard rules:
   - "theme" max 12 words. "detail" max 2 sentences.
   - "representative_quotes" must be verbatim strings from the input partials' evidence.
   - "example_clean_numbers" entries must appear in the input partials' evidence Clean Numbers. NEVER invent.
+  - Drop any partial-extracted weakness whose theme is "agent failed to capture the lead / phone / contact" — every call in this dataset is already a captured inbound lead. (Missing follow-up preferences like WhatsApp opt-in or preferred call-back time IS still valid.)
 
 Required JSON shape:
 {{
@@ -91,7 +95,7 @@ You have {n_partials} partial SWOT extractions from {n_total_calls} recent calls
 
 The 5 functions and their scope:
 
-  1. sales_team — agent skill issues: weak probing, missed hooks, poor objection handling, brand-introduction lapses, rushed closes, not capturing follow-up details.
+  1. sales_team — agent skill issues: weak probing, missed hooks, poor objection handling, brand-introduction lapses, rushed closes, missing follow-up preferences (preferred call-back time / WhatsApp opt-in / decision timeline). DO NOT cite "failed to capture the lead / customer phone" — every call in this dataset is already a captured inbound lead.
   2. marketing — lead-quality and brand-perception: false ad expectations, awareness gaps, attribution issues, lead targeting, campaign-vs-reality tone.
   3. supply_chain_and_delivery — stock-outs, late deliveries, damaged-on-arrival, no-show installs, return logistics.
   4. product_team — portfolio gaps: missing sizes/firmness/price-tier, defects, model-name confusion, feature mismatches, warranty design.
@@ -119,6 +123,7 @@ Hard rules:
   - Output ONLY valid JSON, no fences, no surrounding prose.
   - Always emit ALL 5 function blocks. When a function has no real signal, output `"items": []` — DO NOT invent issues to fill the slot.
   - "example_clean_numbers" entries must appear in the input partials' evidence Clean Numbers. NEVER invent.
+  - Do NOT cite "agent failed to capture the lead / phone / contact" as an issue — every call here is already a captured inbound lead.
 
 Required JSON shape:
 {{

@@ -149,7 +149,7 @@ export default function TrendsDashboard() {
                 
                 const cell = matrix[entity][w];
                 cell.calls++;
-                if (r.intent_rating === 'HIGH' && r.experience_rating !== 'HIGH') cell.badCalls++;
+                if (r.experience_rating === 'LOW') cell.badCalls++;
                 
                 if (String(r.is_converted) === "1" || String(r.is_converted).toLowerCase() === "true" || String(r.is_converted).toLowerCase() === "yes") {
                     cell.convertedCount++;
