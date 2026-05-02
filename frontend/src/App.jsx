@@ -15,6 +15,7 @@ import PersonaLibraryPage from './pages/trainer/admin/PersonaLibraryPage';
 import DrillPage from './pages/trainer/DrillPage';
 import ScoreCardPage from './pages/trainer/ScoreCardPage';
 import DrillsListPage from './pages/trainer/DrillsListPage';
+import SwotReportsPage from './pages/SwotReportsPage';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
@@ -163,6 +164,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <DrillsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/swot-reports"
+          element={
+            <ProtectedRoute>
+              <SwotReportsPage />
             </ProtectedRoute>
           }
         />

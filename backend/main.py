@@ -170,3 +170,83 @@ def export_calls(request: ExportRequest):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "calls_loaded": len(store.get_all_summaries())}
+
+
+# ── SWOT Reports (combined Insights-side view) ─────────────────────────────
+# These endpoints share the SAME ``backend/data/trainer/swot_cache.csv``
+# that the AI Trainer's per-store SWOT view writes to. A refresh from
+# either UI is visible to the other immediately. Available only when the
+# trainer subsystem is enabled (TRAINER_ENABLED=true) since the underlying
+# generator + cache live there.
+
+if TRAINER_ENABLED:
+    from trainer.swot import (  # noqa: E402
+        cache as _swot_cache,
+        generate_swot as _swot_generate,
+        SWOTGenerationError as _SWOTGenerationError,
+    )
+    from trainer.swot.input_adapter import stores_for_city as _stores_for_city  # noqa: E402
+    import json as _json  # noqa: E402
+
+    # Pilot cities for the new Insights-side SWOT Reports page. Must match
+    # keys in backend/data/city_store_mapping.json.
+    PILOT_CITIES = ["Bengaluru", "Hyderabad", "Chennai", "Mumbai", "Delhi NCR"]
+
+    class _SwotRefreshRequest(BaseModel):
+        scope: str  # "city" or "store"
+        name: str
+
+    @app.get("/api/swot-reports/options")
+    def swot_reports_options():
+        """List the cities + stores available on the SWOT Reports page.
+
+        Cities come from the pilot allow-list; stores come from the call
+        data corpus (any store with at least one call).
+        """
+        all_stores = sorted(store.get_unique_stores())
+        # Only surface cities that actually have a mapping entry.
+        cities = [c for c in PILOT_CITIES if _stores_for_city(c)]
+        return {"cities": cities, "stores": all_stores}
+
+    @app.get("/api/swot-reports/{scope}/{name}")
+    def get_swot_report(scope: str, name: str):
+        """Read the latest cached SWOT for (scope, name). 404 if missing."""
+        if scope not in ("city", "store"):
+            raise HTTPException(status_code=400, detail="scope must be 'city' or 'store'")
+        report = _swot_cache.get_cached(name, scope=scope)
+        if report is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"reason": "not_generated", "scope": scope, "name": name},
+            )
+        return {
+            "scope": scope,
+            "name": name,
+            "stale": _swot_cache.is_stale(report),
+            "report": report.model_dump(mode="json"),
+        }
+
+    @app.post("/api/swot-reports/refresh")
+    def refresh_swot_report(request: _SwotRefreshRequest):
+        """Synchronously regenerate the SWOT for (scope, name).
+
+        Open to anyone logged into the analyzer (matches the Q5 default —
+        the analyzer's static admin/admin login means everyone IS admin).
+        Returns the fresh report on success.
+        """
+        if request.scope not in ("city", "store"):
+            raise HTTPException(status_code=400, detail="scope must be 'city' or 'store'")
+        try:
+            report = _swot_generate(
+                request.name,
+                scope=request.scope,
+                actor_email="insights-analyzer",
+            )
+        except _SWOTGenerationError as exc:
+            raise HTTPException(status_code=500, detail=f"{exc.stage}: {exc.reason}")
+        return {
+            "scope": request.scope,
+            "name": request.name,
+            "stale": False,
+            "report": report.model_dump(mode="json"),
+        }

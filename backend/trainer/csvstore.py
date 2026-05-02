@@ -84,6 +84,10 @@ FILES: Dict[str, List[str]] = {
         "model",
         "cost_inr",
         "status",
+        # scope = "store" (default, legacy rows) or "city". Lets one cache
+        # serve both the AI-Trainer per-store SWOT view AND the Insights-side
+        # combined SWOT Reports page (city + store) without duplicating data.
+        "scope",
     ],
     "audit_log.csv": [
         "ts",

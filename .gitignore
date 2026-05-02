@@ -39,6 +39,9 @@ backend/.env
 *.log
 npm-debug.log*
 
+# ── Local backups (e.g. from one-off CSV migrations) ────────────────────────
+*.bak
+
 # ── AI Trainer subsystem runtime data ───────────────────────────────────────
 # Drill audio is short-lived (default 90d retention) and large; never commit.
 backend/data/trainer/audio/*

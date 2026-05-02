@@ -1,26 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Headphones, AlertCircle, TrendingUp, AlertTriangle, Activity, Briefcase, Megaphone, Truck, Package, Globe } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Headphones, AlertCircle, Download } from 'lucide-react';
 import Header from '../../components/Header';
-import SwotQuadrant, { CleanNumberCitations } from '../../components/trainer/SwotQuadrant';
+import SwotReportBody from '../../components/trainer/SwotReportBody';
 import { trainer, TrainerHTTPError } from '../../utils/trainerApi';
-
-// 5 functions in display order, with display labels + icons. Keys must match
-// backend FunctionName Literal in trainer/swot/schema.py.
-const FUNCTION_META = {
-  sales_team:                { label: 'Sales Team',              Icon: Briefcase, accent: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
-  marketing:                 { label: 'Marketing',               Icon: Megaphone, accent: 'text-pink-700 bg-pink-50 border-pink-200' },
-  supply_chain_and_delivery: { label: 'Supply Chain & Delivery', Icon: Truck,     accent: 'text-amber-700 bg-amber-50 border-amber-200' },
-  product_team:              { label: 'Product Team',            Icon: Package,   accent: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-  omnichannel_team:          { label: 'Omnichannel Team',        Icon: Globe,     accent: 'text-sky-700 bg-sky-50 border-sky-200' },
-};
-const FUNCTION_ORDER = ['sales_team', 'marketing', 'supply_chain_and_delivery', 'product_team', 'omnichannel_team'];
-
-const SEVERITY_STYLES = {
-  high: 'bg-red-50 text-red-700 border-red-200',
-  medium: 'bg-amber-50 text-amber-700 border-amber-200',
-  low: 'bg-slate-50 text-slate-600 border-slate-200',
-};
+import { downloadSwotPdf } from '../../utils/swotPdf';
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 90_000;
@@ -125,10 +109,10 @@ export default function StoreSwotPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <Header />
+      <div className="print:hidden"><Header /></div>
 
       <div className="max-w-[1400px] mx-auto px-8 py-8">
-        <Link to="/trainer" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 mb-4 hover:gap-2 transition-all uppercase tracking-widest">
+        <Link to="/trainer" className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 mb-4 hover:gap-2 transition-all uppercase tracking-widest print:hidden">
           <ArrowLeft className="w-3 h-3" /> Back to AI Trainer
         </Link>
 
@@ -150,7 +134,15 @@ export default function StoreSwotPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 print:hidden">
+            <button
+              onClick={() => downloadSwotPdf({ scope: 'store', name: storeName, generatedAt: report?.generated_at })}
+              disabled={!report || refreshing}
+              className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold px-4 py-2 rounded-xl flex items-center gap-2 transition shadow-sm"
+              title="Open the browser print dialog and save this report as a PDF"
+            >
+              <Download className="w-4 h-4" /> Download PDF
+            </button>
             {canRefresh && (
               <button
                 onClick={handleRefresh}
@@ -186,25 +178,10 @@ export default function StoreSwotPage() {
           </div>
         )}
 
-        {!loading && !error && report && report.quick_stats && (
-          <QuickStatsStrip stats={report.quick_stats} />
-        )}
+        {!loading && !error && report && <SwotReportBody report={report} />}
 
         {!loading && !error && report && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <SwotQuadrant kind="strengths"     title="Strengths"     items={report.strengths} />
-            <SwotQuadrant kind="weaknesses"    title="Weaknesses"    items={report.weaknesses} />
-            <SwotQuadrant kind="opportunities" title="Opportunities" items={report.opportunities} />
-            <SwotQuadrant kind="threats"       title="Threats"       items={report.threats} />
-          </div>
-        )}
-
-        {!loading && !error && report && report.function_improvements && report.function_improvements.length > 0 && (
-          <FunctionImprovementsSection blocks={report.function_improvements} />
-        )}
-
-        {!loading && !error && report && (
-          <div className="mt-6 text-xs text-slate-400 flex items-center gap-2 border-t border-slate-100 pt-4">
+          <div className="mt-6 text-xs text-slate-400 flex items-center gap-2 border-t border-slate-100 pt-4 print:hidden">
             <Headphones className="w-3 h-3" />
             <span>
               Models: <span className="font-mono text-slate-600">{report.model_map}</span> · <span className="font-mono text-slate-600">{report.model_reduce}</span>
@@ -214,141 +191,23 @@ export default function StoreSwotPage() {
           </div>
         )}
       </div>
+
+      {/* Print stylesheet — same layout rules as the Insights-side SWOT
+          Reports page so saved PDFs are visually identical regardless of
+          which UI generated them. */}
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 14mm; }
+          html, body { background: white !important; }
+          body * { box-shadow: none !important; }
+          .print\\:hidden { display: none !important; }
+          section, ol > li, ul > li, .rounded-2xl { break-inside: avoid; page-break-inside: avoid; }
+          .max-w-\\[1400px\\] { max-width: 100% !important; padding: 0 !important; }
+          .py-8 { padding-top: 0 !important; padding-bottom: 0 !important; }
+          a { color: #1d4ed8 !important; text-decoration: none !important; }
+        }
+      `}</style>
     </div>
-  );
-}
-
-// ── Quick Stats strip — CSO 5-second read above the SWOT quadrants ─────────
-function QuickStatsStrip({ stats }) {
-  const cells = [
-    {
-      label: 'Calls analysed',
-      value: stats.calls_analyzed ?? 0,
-      subtitle: 'this period',
-      Icon: Activity,
-      accent: 'text-slate-700',
-    },
-    {
-      label: 'Top blocker',
-      value: stats.top_blocker_calls ?? 0,
-      subtitle: stats.top_blocker_theme || '—',
-      Icon: AlertTriangle,
-      accent: 'text-rose-700',
-    },
-    {
-      label: 'Biggest strength',
-      value: '★',
-      subtitle: stats.biggest_strength_theme || '—',
-      Icon: TrendingUp,
-      accent: 'text-emerald-700',
-      valueIsLabel: true,
-    },
-    {
-      label: 'High-severity items',
-      value: stats.high_severity_count ?? 0,
-      subtitle: 'across SWOT + functions',
-      Icon: AlertCircle,
-      accent: 'text-amber-700',
-    },
-  ];
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-      {cells.map((c, i) => (
-        <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-start gap-3">
-          <c.Icon className={`w-5 h-5 ${c.accent} shrink-0 mt-0.5`} />
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{c.label}</div>
-            <div className={`font-black ${c.accent} ${c.valueIsLabel ? 'text-2xl' : 'text-2xl tabular-nums'}`}>
-              {c.value}
-            </div>
-            <div className="text-xs text-slate-500 truncate" title={c.subtitle}>{c.subtitle}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Function Improvement Areas — CSO/CGO action-oriented section ───────────
-function FunctionImprovementsSection({ blocks }) {
-  // Index blocks by function key so we can render in canonical order even if
-  // the model returns them shuffled.
-  const byKey = {};
-  for (const b of blocks || []) {
-    if (b && b.function) byKey[b.function] = b;
-  }
-  return (
-    <section className="mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">For CSO / Head of Sales / CGO</p>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "'Fraunces', serif" }}>
-            Key Improvement Areas by Function
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Themes scoped to the team that owns the fix, with concrete next actions and call citations.
-          </p>
-        </div>
-      </div>
-      <div className="space-y-4">
-        {FUNCTION_ORDER.map((key) => {
-          const block = byKey[key] || { function: key, items: [] };
-          return <FunctionBlockCard key={key} block={block} />;
-        })}
-      </div>
-    </section>
-  );
-}
-
-function FunctionBlockCard({ block }) {
-  const meta = FUNCTION_META[block.function] || { label: block.function, Icon: Activity, accent: 'text-slate-700 bg-slate-50 border-slate-200' };
-  const items = block.items || [];
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5">
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center ${meta.accent}`}>
-          <meta.Icon className="w-4 h-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-slate-900">{meta.label}</h3>
-          <p className="text-xs text-slate-500">
-            {items.length === 0 ? 'No issues identified for this period' : `${items.length} improvement ${items.length === 1 ? 'theme' : 'themes'}`}
-          </p>
-        </div>
-      </div>
-      {items.length > 0 && (
-        <ol className="space-y-3">
-          {items.map((it, i) => <FunctionImprovementItem key={i} item={it} />)}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-function FunctionImprovementItem({ item }) {
-  const sev = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.medium;
-  return (
-    <li className="border border-slate-100 bg-slate-50/60 rounded-xl p-3">
-      <div className="flex items-center gap-2 flex-wrap mb-1">
-        <h4 className="text-sm font-bold text-slate-900">{item.theme}</h4>
-        <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${sev}`}>
-          {item.severity}
-        </span>
-        {item.evidence_count > 0 && (
-          <span className="text-[10px] text-slate-400">{item.evidence_count} {item.evidence_count === 1 ? 'call' : 'calls'}</span>
-        )}
-      </div>
-      <p className="text-sm text-slate-600 leading-snug mb-1.5">{item.detail}</p>
-      {item.recommended_action && (
-        <div className="bg-white border-l-2 border-indigo-300 px-3 py-1.5 rounded-r-md text-xs text-slate-700">
-          <span className="font-bold uppercase tracking-wider text-[9px] text-indigo-600 mr-2">Action</span>
-          {item.recommended_action}
-        </div>
-      )}
-      {(item.example_clean_numbers || []).length > 0 && (
-        <CleanNumberCitations numbers={item.example_clean_numbers} totalCount={item.evidence_count} />
-      )}
-    </li>
   );
 }
 

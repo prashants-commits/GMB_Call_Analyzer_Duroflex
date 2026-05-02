@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download } from 'lucide-react';
+import { ArrowLeft, Sparkles, Calendar, MapPin, ShoppingCart, TrendingDown, ChevronDown, Check, FileText, Loader2, AlertTriangle, ThumbsUp, ThumbsDown, Rocket, Building2, Tag, Download, BarChart3 } from 'lucide-react';
 import { fetchAnalyticsData, parseDate, generateInsightsReport } from '../utils/api';
 import cityStoreMapping from '../utils/city_store_mapping.json';
 
@@ -247,20 +247,31 @@ export default function InsightsDashboard() {
                         </h1>
                         <p className="text-slate-500 font-medium">AI-powered executive reports from your call data</p>
                     </div>
-                    {/* Toggle Mode */}
-                    <div className="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200">
+                    <div className="flex items-center gap-3">
+                        {/* SWOT Reports CTA — opens the city + store SWOT view (synced with the AI Trainer) */}
                         <button
-                            onClick={() => setMode('single')}
-                            className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${mode === 'single' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            onClick={() => navigate('/swot-reports')}
+                            className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-sm"
+                            title="Open the SWOT Reports view (city + store, with phone-citation links)"
                         >
-                            Single View
+                            <BarChart3 className="w-4 h-4" /> SWOT Reports
                         </button>
-                        <button
-                            onClick={() => setMode('compare')}
-                            className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${mode === 'compare' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            Compare
-                        </button>
+
+                        {/* Toggle Mode */}
+                        <div className="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-200">
+                            <button
+                                onClick={() => setMode('single')}
+                                className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${mode === 'single' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                Single View
+                            </button>
+                            <button
+                                onClick={() => setMode('compare')}
+                                className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${mode === 'compare' ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                Compare
+                            </button>
+                        </div>
                     </div>
                 </div>
 
