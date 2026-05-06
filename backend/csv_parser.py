@@ -62,6 +62,24 @@ def safe_str(val: Any) -> str:
     return str(val).strip() if val else ""
 
 
+def parse_call_date(val: Any) -> tuple[int, int, int]:
+    """Parse a DD-MM-YYYY call_date string to a (year, month, day) tuple.
+
+    Used as a sort key — invalid/empty values sort before all real dates.
+    """
+    s = safe_str(val)
+    if not s:
+        return (0, 0, 0)
+    parts = s.split("-")
+    if len(parts) != 3:
+        return (0, 0, 0)
+    try:
+        d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+    except (ValueError, TypeError):
+        return (0, 0, 0)
+    return (y, m, d)
+
+
 # ── Transcript parser ────────────────────────────────────────────────────────
 
 _TRANSCRIPT_RE = re.compile(
@@ -434,25 +452,13 @@ class CallDataStore:
         with open(CSV_PATH, mode="r", encoding="latin-1") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Robust date extraction
-                cd = row.get("CallDateTime")
-                if not cd or "###" in str(cd):
-                    # Try to find a date-like string in the row as a fallback
-                    for val in row.values():
-                        if val and "/" in val and len(val) >= 8 and len(val) <= 16:
-                            cd = val
-                            break
-                
                 clean_number = safe_str(row.get("CleanNumber"))
                 if not clean_number:
                     continue
-                
+
                 call_type = safe_str(row.get("Call Type"))
                 if call_type not in ("PRE_PURCHASE (Pre Store Visit)", "PRE_PURCHASE (Post Store Visit)"):
                     continue
-                
-                # Update row with corrected date for the builders
-                row["CallDateTime"] = cd
 
                 self._summaries.append(_build_call_summary(row))
                 self._analytics.append(_build_analytics_summary(row))

@@ -36,34 +36,16 @@ export function yesNoLabel(val) {
 
 export function formatShortDate(dateStr) {
   if (!dateStr || dateStr === 'N/A') return 'N/A';
-  // Handles "M/D/YYYY HH:mm" or just "M/D/YYYY"
-  return dateStr.split(' ')[0];
+  return dateStr;
 }
 
 export function parseDate(dateStr) {
-  if (!dateStr || dateStr === 'N/A' || dateStr.startsWith('###')) return null;
-  // Source CSV mixes four formats:
-  //   'M/D/YYYY', 'M-D-YYYY' (month first),
-  //   'YYYY-MM-DD HH:MM:SS' (ISO),
-  //   'DD-MM-YYYY HH:MM' (day first).
-  const parts = dateStr.split(' ')[0].split(/[/-]/);
+  if (!dateStr || dateStr === 'N/A') return null;
+  // Source CSV stores all dates as DD-MM-YYYY (no timestamp).
+  const parts = dateStr.split('-');
   if (parts.length !== 3) return null;
-  const [a, b, c] = parts.map(Number);
-  if (!a || !b || !c) return null;
-  let y, m, d;
-  if (parts[0].length === 4) {
-    // YYYY-MM-DD
-    y = a; m = b; d = c;
-  } else if (a > 12) {
-    // DD-MM-YYYY (day clearly > 12)
-    d = a; m = b; y = c;
-  } else if (b > 12) {
-    // MM-DD-YYYY (day clearly > 12 in second slot)
-    m = a; d = b; y = c;
-  } else {
-    // Ambiguous (both ≤ 12). Default to month-first (US/slash convention used elsewhere in this dataset).
-    m = a; d = b; y = c;
-  }
+  const [d, m, y] = parts.map(Number);
+  if (!d || !m || !y) return null;
   return new Date(y, m - 1, d);
 }
 

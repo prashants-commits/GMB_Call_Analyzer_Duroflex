@@ -16,6 +16,8 @@ from typing import Any, Dict, List
 
 from pydantic import ValidationError
 
+from csv_parser import parse_call_date
+
 from .. import bootstrap
 from ..config import (
     PERSONA_INR_PER_1M_IN,
@@ -153,6 +155,6 @@ def latest_calls_for_signatures(n: int, store_name: str | None = None) -> List[D
     analytics = cds.get_analytics_data()
     if store_name:
         analytics = [c for c in analytics if c.get("store_name") == store_name]
-    analytics_sorted = sorted(analytics, key=lambda c: c.get("call_date") or "", reverse=True)
+    analytics_sorted = sorted(analytics, key=lambda c: parse_call_date(c.get("call_date")), reverse=True)
     clean_numbers = [c["clean_number"] for c in analytics_sorted[:n] if c.get("clean_number")]
     return cds.get_insight_columns(clean_numbers)

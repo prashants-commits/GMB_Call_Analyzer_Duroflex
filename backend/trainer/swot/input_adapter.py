@@ -15,6 +15,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from csv_parser import parse_call_date
+
 from .. import bootstrap
 from ..config import CITY_STORE_MAPPING_PATH
 
@@ -46,11 +48,7 @@ def latest_calls_for_store(store_name: str, n: int = DEFAULT_N) -> List[Dict[str
     if not matching:
         return []
 
-    # Sort by call_date desc. CallDateTime is a free-form string; lexicographic
-    # ordering works for ISO-8601 / "MM/DD/YYYY HH:MM:SS"-style values
-    # consistently within the dataset (call_parser stores them as raw strings).
-    # If parse fails for any row we fall back to natural order.
-    matching.sort(key=lambda c: c.get("call_date") or "", reverse=True)
+    matching.sort(key=lambda c: parse_call_date(c.get("call_date")), reverse=True)
 
     top_clean_numbers = [c["clean_number"] for c in matching[:n] if c.get("clean_number")]
     rich = cds.get_insight_columns(top_clean_numbers)
@@ -135,7 +133,7 @@ def latest_calls_for_city(city_name: str, n: int = DEFAULT_N) -> List[Dict[str, 
     if not matching:
         return []
 
-    matching.sort(key=lambda c: c.get("call_date") or "", reverse=True)
+    matching.sort(key=lambda c: parse_call_date(c.get("call_date")), reverse=True)
     top_clean_numbers = [c["clean_number"] for c in matching[:n] if c.get("clean_number")]
     rich = cds.get_insight_columns(top_clean_numbers)
     logger.info(
