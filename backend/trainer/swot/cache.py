@@ -3,7 +3,7 @@
 Persisted as rows in ``swot_cache.csv`` (column schema in
 ``trainer/csvstore.py:FILES``). We never overwrite — refreshes append a new
 row, and ``get_cached`` returns the most recent ``status='ok'`` row per
-``(scope, name)``.
+``(scope, name, version)``.
 
 Scope semantics (added when the Insights-side SWOT Reports page landed):
   - ``scope='store'`` (default, legacy rows): keyed by store_name. Used by
@@ -11,6 +11,13 @@ Scope semantics (added when the Insights-side SWOT Reports page landed):
     Insights side.
   - ``scope='city'``: keyed by city_name (stored in the same ``store_name``
     column for brevity). Used by the City Reports tab on Insights side.
+
+Version semantics (added when the Insights "Mattress calls / All calls"
+toggle landed — see input_adapter for the filter rules):
+  - ``version='all_calls'``: SWOT was built from every PRE_PURCHASE call.
+    All legacy/pre-version rows resolve here.
+  - ``version='mattress_only'``: SWOT was built from calls whose
+    ``product_category`` is in the mattress allow-list.
 
 Both apps read from this single cache so a refresh from either UI is
 visible to the other immediately.
@@ -37,19 +44,38 @@ CACHE_FILE = "swot_cache.csv"
 # so existing AI-Trainer SWOTs continue to resolve via get_cached(scope='store').
 _DEFAULT_SCOPE = "store"
 
+# Legacy rows (pre-version-filter) have ``version==""``. Treat that as
+# "all_calls" — those rows were generated before any category filter
+# existed, so they ARE the all-calls view of the data.
+_DEFAULT_VERSION = "all_calls"
 
-def _row_scope(row: pd.Series) -> str:
-    """Return the row's scope, treating empty/missing as the default."""
-    val = row.get("scope", "") if isinstance(row, pd.Series) else ""
-    return val or _DEFAULT_SCOPE
+ALLOWED_VERSIONS = ("all_calls", "mattress_only")
 
 
-def get_cached(name: str, *, scope: str = "store") -> Optional[SWOTReport]:
-    """Return the most recent ``status='ok'`` SWOT for ``(scope, name)``.
+def _resolve_version_col(df: pd.DataFrame) -> pd.Series:
+    """Return df['version'] with empty/missing values resolved to 'all_calls'."""
+    if "version" not in df.columns:
+        return pd.Series([_DEFAULT_VERSION] * len(df), index=df.index)
+    return df["version"].fillna("").replace("", _DEFAULT_VERSION)
+
+
+def get_cached(
+    name: str,
+    *,
+    scope: str = "store",
+    version: str = _DEFAULT_VERSION,
+) -> Optional[SWOTReport]:
+    """Return the most recent ``status='ok'`` SWOT for ``(scope, name, version)``.
+
+    ``version`` defaults to ``'all_calls'`` so legacy callers that don't
+    pass version still resolve to the unfiltered report — matching the
+    legacy-row meaning. New consumers should pass version explicitly.
 
     Use ``is_stale(report)`` to check the TTL separately — callers may want
     to serve stale-while-revalidate.
     """
+    if version not in ALLOWED_VERSIONS:
+        raise ValueError(f"unknown SWOT version {version!r}; allowed: {ALLOWED_VERSIONS}")
     df = csvstore.read_filtered(CACHE_FILE, store_name=name)
     if df.empty:
         return None
@@ -60,13 +86,19 @@ def get_cached(name: str, *, scope: str = "store") -> Optional[SWOTReport]:
     df = df[df["scope"].fillna("").replace("", _DEFAULT_SCOPE) == scope]
     if df.empty:
         return None
+    # Filter by version. Legacy rows ("") resolve as "all_calls".
+    df = df[_resolve_version_col(df) == version]
+    if df.empty:
+        return None
     df = df.sort_values("generated_at", kind="stable")
     row = df.iloc[-1]
     try:
         report_dict = json.loads(row["swot_json"])
         return SWOTReport.model_validate(report_dict)
     except (ValueError, TypeError) as exc:
-        logger.warning("Could not parse cached SWOT for %s/%s: %s", scope, name, exc)
+        logger.warning(
+            "Could not parse cached SWOT for %s/%s/%s: %s", scope, version, name, exc,
+        )
         return None
 
 
@@ -79,8 +111,16 @@ def is_stale(report: SWOTReport, ttl_days: int = SWOT_CACHE_TTL_DAYS) -> bool:
     return age.days >= ttl_days
 
 
-def put_cache(report: SWOTReport, *, status: str = "ok", scope: str = "store") -> None:
+def put_cache(
+    report: SWOTReport,
+    *,
+    status: str = "ok",
+    scope: str = "store",
+    version: str = _DEFAULT_VERSION,
+) -> None:
     """Append a new cache row. Never updates in place."""
+    if version not in ALLOWED_VERSIONS:
+        raise ValueError(f"unknown SWOT version {version!r}; allowed: {ALLOWED_VERSIONS}")
     csvstore.append(
         CACHE_FILE,
         {
@@ -92,12 +132,22 @@ def put_cache(report: SWOTReport, *, status: str = "ok", scope: str = "store") -
             "cost_inr": round(report.cost_inr, 4),
             "status": status,
             "scope": scope,
+            "version": version,
         },
     )
 
 
-def put_failure(name: str, reason: str, *, model: str = "", scope: str = "store") -> None:
+def put_failure(
+    name: str,
+    reason: str,
+    *,
+    model: str = "",
+    scope: str = "store",
+    version: str = _DEFAULT_VERSION,
+) -> None:
     """Audit a failed generation by appending a stub row with status='failed'."""
+    if version not in ALLOWED_VERSIONS:
+        raise ValueError(f"unknown SWOT version {version!r}; allowed: {ALLOWED_VERSIONS}")
     csvstore.append(
         CACHE_FILE,
         {
@@ -109,16 +159,21 @@ def put_failure(name: str, reason: str, *, model: str = "", scope: str = "store"
             "cost_inr": 0,
             "status": "failed",
             "scope": scope,
+            "version": version,
         },
     )
 
 
-def list_cached(scope: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Return one summary row per (scope, name) with the latest ``ok`` SWOT.
+def list_cached(
+    scope: Optional[str] = None,
+    version: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Return one summary row per (scope, name, version) with the latest
+    ``ok`` SWOT.
 
-    Pass ``scope='store'`` or ``scope='city'`` to filter; ``None`` returns
-    both kinds (each row tagged with its scope so the caller can group).
-    Newest first.
+    Pass ``scope`` and/or ``version`` to filter; ``None`` returns all
+    kinds (each row tagged with its scope and version so the caller can
+    group). Newest first.
     """
     df = csvstore.read_all(CACHE_FILE)
     if df.empty:
@@ -126,14 +181,19 @@ def list_cached(scope: Optional[str] = None) -> List[Dict[str, Any]]:
     df = df[df["status"] == "ok"]
     if df.empty:
         return []
-    # Normalise legacy empty scope -> "store".
-    df = df.assign(scope=df["scope"].fillna("").replace("", _DEFAULT_SCOPE))
+    # Normalise legacy empty values -> defaults.
+    df = df.assign(
+        scope=df["scope"].fillna("").replace("", _DEFAULT_SCOPE),
+        version=_resolve_version_col(df).values,
+    )
     if scope is not None:
         df = df[df["scope"] == scope]
-        if df.empty:
-            return []
+    if version is not None:
+        df = df[df["version"] == version]
+    if df.empty:
+        return []
     df = df.sort_values("generated_at", kind="stable")
-    df = df.drop_duplicates(subset=["scope", "store_name"], keep="last")
+    df = df.drop_duplicates(subset=["scope", "store_name", "version"], keep="last")
     df = df.sort_values("generated_at", ascending=False, kind="stable")
 
     rows: List[Dict[str, Any]] = []
@@ -141,6 +201,7 @@ def list_cached(scope: Optional[str] = None) -> List[Dict[str, Any]]:
         rows.append(
             {
                 "scope": r["scope"],
+                "version": r["version"],
                 "name": r["store_name"],
                 # Keep store_name as alias for backward-compat with the
                 # AI Trainer admin page which reads list_cached() pre-scope.

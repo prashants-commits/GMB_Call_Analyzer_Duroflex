@@ -88,6 +88,11 @@ FILES: Dict[str, List[str]] = {
         # serve both the AI-Trainer per-store SWOT view AND the Insights-side
         # combined SWOT Reports page (city + store) without duplicating data.
         "scope",
+        # version = "all_calls" (legacy rows; no category filter) or
+        # "mattress_only" (calls filtered to mattress product categories
+        # before SWOT synthesis). Lets the Insights UI toggle between the
+        # two without re-running generation. Empty/missing → "all_calls".
+        "version",
     ],
     "audit_log.csv": [
         "ts",
@@ -144,19 +149,53 @@ def _path(filename: str) -> Path:
 
 
 def ensure_headers() -> None:
-    """Create any missing CSV with its canonical header. Idempotent.
+    """Create any missing CSV with its canonical header, and migrate
+    existing CSVs whose header doesn't match the canonical schema.
 
     Called once from ``bootstrap.on_startup`` when the trainer is enabled.
-    Never modifies existing files.
+    Migration rewrites the file to canonical column order, padding old
+    rows with empty strings for newly-added columns. Original is preserved
+    as ``<file>.pre-migration.bak`` (only on first migration of that file).
     """
+    import shutil
+
     Path(TRAINER_DATA_DIR).mkdir(parents=True, exist_ok=True)
     for filename, columns in FILES.items():
         path = _path(filename)
-        if path.exists():
+        if not path.exists():
+            with path.open("w", encoding="utf-8", newline="") as f:
+                csv.writer(f).writerow(columns)
+            logger.info("Created CSV %s with header columns=%s", path.name, columns)
             continue
-        with path.open("w", encoding="utf-8", newline="") as f:
-            csv.writer(f).writerow(columns)
-        logger.info("Created CSV %s with header columns=%s", path.name, columns)
+
+        # Check whether the on-disk header matches the canonical schema.
+        with path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.reader(f)
+            try:
+                existing_header = next(reader)
+            except StopIteration:
+                existing_header = []
+        if existing_header == columns:
+            continue
+
+        # Migrate: rewrite the file with canonical column order + padding.
+        with _file_lock(filename):
+            with path.open("r", encoding="utf-8", newline="") as f:
+                rows = list(csv.DictReader(f))
+            backup = path.with_suffix(path.suffix + ".pre-migration.bak")
+            if not backup.exists():
+                shutil.copy2(path, backup)
+            with path.open("w", encoding="utf-8", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(columns)
+                for r in rows:
+                    writer.writerow([r.get(c, "") for c in columns])
+        added = [c for c in columns if c not in existing_header]
+        removed = [c for c in existing_header if c not in columns]
+        logger.info(
+            "Migrated %s to canonical schema: added=%s removed=%s rows=%d",
+            path.name, added, removed, len(rows),
+        )
 
 
 # ── Append ───────────────────────────────────────────────────────────────────

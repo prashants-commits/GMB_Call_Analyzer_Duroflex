@@ -305,11 +305,21 @@ def admin_audit(
 
 # ── Store SWOT (Group B) ────────────────────────────────────────────────────
 
+# AI Trainer-side SWOT view is pinned to the mattress_only version per
+# product decision (the Insights side has the toggle). All reads + refreshes
+# below resolve against the mattress_only cache row.
+_TRAINER_SWOT_VERSION = "mattress_only"
+
 
 @router.get("/swot")
 def list_swot_summaries(_actor: TrainerActor = Depends(current_actor)):
-    """Lightweight summary of every store with a cached SWOT, newest first."""
-    return {"items": list_cached()}
+    """Lightweight summary of every store with a cached SWOT, newest first.
+
+    Filtered to the mattress_only version since that's what the trainer
+    UI surfaces; an admin who needs the all_calls view should use the
+    Insights-side SWOT Reports page.
+    """
+    return {"items": list_cached(version=_TRAINER_SWOT_VERSION)}
 
 
 @router.get("/swot/{store_name}")
@@ -317,13 +327,14 @@ def get_swot(store_name: str, actor: TrainerActor = Depends(current_actor)):
     """Return the latest cached SWOT for a store. Triggers generation only if
     no cached row exists yet — stale entries are still returned (the UI shows
     a "stale" pill and offers a Refresh button)."""
-    report = get_cached(store_name)
+    report = get_cached(store_name, version=_TRAINER_SWOT_VERSION)
     if report is None:
         # No cache yet. Auto-generate synchronously for the first viewer.
         # This is up to ~30s; subsequent viewers hit the cache instantly.
         try:
             report = generate_swot(
                 store_name,
+                version=_TRAINER_SWOT_VERSION,
                 actor_staff_id=actor.staff_id,
                 actor_email=actor.email,
             )
@@ -358,6 +369,7 @@ def refresh_swot(
         try:
             report = generate_swot(
                 store_name,
+                version=_TRAINER_SWOT_VERSION,
                 actor_staff_id=actor.staff_id,
                 actor_email=actor.email,
             )

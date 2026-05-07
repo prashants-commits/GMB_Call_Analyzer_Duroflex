@@ -1,17 +1,25 @@
 """One-off: regenerate every cached SWOT and back-fill new high-traffic stores.
 
-Triggered manually after the prompts.py "captured-lead" fix on 2026-05-02.
-Scope:
-  * 5 pilot cities (always)
-  * Every store with >= 70 PRE_PURCHASE leads in the analytics CSV
+Originally triggered after the prompts.py "captured-lead" fix on 2026-05-02.
+Re-used for the SWOT version-filter rollout: pass ``--version mattress_only``
+(or set ``SWOT_REGEN_VERSION=mattress_only``) to populate the new
+mattress-only cache rows for every existing scope.
 
-Runs 3 generations in parallel via a thread pool. Each generation makes
+Scope:
+  * Cities: only those that already have a cached SWOT in any version
+    (via list_cached without a version filter). Falls back to PILOT_CITIES
+    if the cache is empty.
+  * Stores: existing cached scopes UNION every store with >= 70
+    PRE_PURCHASE leads in the analytics CSV.
+
+Runs N generations in parallel via a thread pool. Each generation makes
 3 Gemini Pro calls (Stage-1 map x N batches + 2 Stage-2 reduce calls)
 and persists to swot_cache.csv via the existing orchestrator.
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 import sys
@@ -29,6 +37,7 @@ load_dotenv(BACKEND / ".env")
 
 from csv_parser import CallDataStore  # noqa: E402
 from trainer.bootstrap import on_startup as trainer_on_startup  # noqa: E402
+from trainer.swot.cache import list_cached  # noqa: E402
 from trainer.swot.orchestrator import generate_swot, SWOTGenerationError  # noqa: E402
 
 # Bootstrap the trainer subsystem so latest_calls_for_store/city can resolve
@@ -43,6 +52,7 @@ LEAD_THRESHOLD = 70  # >= 70 PRE_PURCHASE calls
 PILOT_CITIES = ["Bengaluru", "Hyderabad", "Chennai", "Mumbai", "Delhi NCR"]
 ANALYTICS_CSV = BACKEND / "GMB Calls Analyzer - Call details (sample).csv"
 PARALLELISM = 3
+ACTOR_EMAIL = "bulk-regen"
 
 
 def qualifying_stores() -> list[tuple[str, int]]:
@@ -61,13 +71,41 @@ def qualifying_stores() -> list[tuple[str, int]]:
     )
 
 
-def run_one(scope: str, name: str) -> dict:
+def existing_cached_scopes() -> tuple[set[str], set[str]]:
+    """Return (cities, stores) that already have at least one cached SWOT
+    in any version. Used to scope the regen to "everything that currently
+    has a report" without rediscovering."""
+    cities: set[str] = set()
+    stores: set[str] = set()
+    for row in list_cached():  # all scopes, all versions
+        if row["scope"] == "city":
+            cities.add(row["name"])
+        elif row["scope"] == "store":
+            stores.add(row["name"])
+    return cities, stores
+
+
+def resolve_targets(only_existing: bool) -> list[tuple[str, str]]:
+    cached_cities, cached_stores = existing_cached_scopes()
+    if only_existing:
+        cities = sorted(cached_cities) or list(PILOT_CITIES)
+        stores = sorted(cached_stores)
+        return [("city", c) for c in cities] + [("store", s) for s in stores]
+    # Legacy: pilot cities + every high-traffic store + any extra cached scope.
+    qstores = [s for s, _ in qualifying_stores()]
+    stores = sorted(set(qstores) | cached_stores)
+    cities = sorted(set(PILOT_CITIES) | cached_cities)
+    return [("city", c) for c in cities] + [("store", s) for s in stores]
+
+
+def run_one(scope: str, name: str, version: str) -> dict:
     t0 = time.time()
     try:
-        report = generate_swot(name, scope=scope, actor_email="bulk-regen-2026-05-02")
+        report = generate_swot(name, scope=scope, version=version, actor_email=ACTOR_EMAIL)
         return {
             "scope": scope,
             "name": name,
+            "version": version,
             "ok": True,
             "elapsed": time.time() - t0,
             "cost_inr": report.cost_inr,
@@ -78,33 +116,62 @@ def run_one(scope: str, name: str) -> dict:
             "n_th": len(report.threats),
         }
     except SWOTGenerationError as exc:
-        return {"scope": scope, "name": name, "ok": False, "elapsed": time.time() - t0,
+        return {"scope": scope, "name": name, "version": version, "ok": False,
+                "elapsed": time.time() - t0,
                 "error": f"{exc.stage}: {exc.reason}"}
     except Exception as exc:  # noqa: BLE001
-        return {"scope": scope, "name": name, "ok": False, "elapsed": time.time() - t0,
+        return {"scope": scope, "name": name, "version": version, "ok": False,
+                "elapsed": time.time() - t0,
                 "error": f"{type(exc).__name__}: {exc}"}
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--version", "-v",
+        choices=["all_calls", "mattress_only"],
+        default=os.getenv("SWOT_REGEN_VERSION", "mattress_only"),
+        help="SWOT version to (re)generate (default: mattress_only)",
+    )
+    parser.add_argument(
+        "--only-existing",
+        action="store_true",
+        default=True,
+        help="Restrict to scopes that already have a cached SWOT (default)",
+    )
+    parser.add_argument(
+        "--include-new-stores",
+        dest="only_existing",
+        action="store_false",
+        help="Also include any store with >= 70 PRE_PURCHASE leads (legacy behaviour)",
+    )
+    parser.add_argument("--parallelism", "-p", type=int, default=PARALLELISM)
+    args = parser.parse_args()
+
     if not os.getenv("GEMINI_API_KEY"):
         print("ERROR: GEMINI_API_KEY not set in backend/.env", file=sys.stderr)
         return 2
 
-    stores = qualifying_stores()
-    targets = (
-        [("city", c) for c in PILOT_CITIES]
-        + [("store", s) for s, _ in stores]
-    )
-    print(f"=== SWOT bulk regenerate ===")
-    print(f"Cities: {len(PILOT_CITIES)}  Stores (>={LEAD_THRESHOLD} PRE_PURCHASE leads): {len(stores)}")
-    print(f"Total reports: {len(targets)}  Parallelism: {PARALLELISM}")
+    targets = resolve_targets(only_existing=args.only_existing)
+    cities = [t for t in targets if t[0] == "city"]
+    stores = [t for t in targets if t[0] == "store"]
+    print(f"=== SWOT bulk regenerate (version={args.version}) ===")
+    if args.only_existing:
+        print(f"Mode: only-existing (every scope with a cached SWOT)")
+    else:
+        print(f"Mode: legacy (pilot cities + stores >={LEAD_THRESHOLD} leads)")
+    print(f"Cities: {len(cities)}  Stores: {len(stores)}")
+    print(f"Total reports: {len(targets)}  Parallelism: {args.parallelism}")
     print()
 
     results: list[dict] = []
     started_at = time.time()
 
-    with ThreadPoolExecutor(max_workers=PARALLELISM) as ex:
-        futures = {ex.submit(run_one, scope, name): (scope, name) for scope, name in targets}
+    with ThreadPoolExecutor(max_workers=args.parallelism) as ex:
+        futures = {
+            ex.submit(run_one, scope, name, args.version): (scope, name)
+            for scope, name in targets
+        }
         completed = 0
         for fut in as_completed(futures):
             r = fut.result()

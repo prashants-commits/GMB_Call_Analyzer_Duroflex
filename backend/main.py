@@ -192,9 +192,16 @@ if TRAINER_ENABLED:
     # keys in backend/data/city_store_mapping.json.
     PILOT_CITIES = ["Bengaluru", "Hyderabad", "Chennai", "Mumbai", "Delhi NCR"]
 
+    # Insights-side SWOT default: mattress_only. The toggle on the SWOT
+    # Reports page lets users flip to all_calls. The AI Trainer side is
+    # hard-coded to mattress_only in trainer/router.py.
+    _INSIGHTS_DEFAULT_VERSION = "mattress_only"
+    _ALLOWED_VERSIONS = ("all_calls", "mattress_only")
+
     class _SwotRefreshRequest(BaseModel):
         scope: str  # "city" or "store"
         name: str
+        version: Optional[str] = None  # "all_calls" or "mattress_only"; defaults to mattress_only
 
     @app.get("/api/swot-reports/options")
     def swot_reports_options():
@@ -206,40 +213,61 @@ if TRAINER_ENABLED:
         all_stores = sorted(store.get_unique_stores())
         # Only surface cities that actually have a mapping entry.
         cities = [c for c in PILOT_CITIES if _stores_for_city(c)]
-        return {"cities": cities, "stores": all_stores}
+        return {
+            "cities": cities,
+            "stores": all_stores,
+            "versions": list(_ALLOWED_VERSIONS),
+            "default_version": _INSIGHTS_DEFAULT_VERSION,
+        }
 
     @app.get("/api/swot-reports/{scope}/{name}")
-    def get_swot_report(scope: str, name: str):
-        """Read the latest cached SWOT for (scope, name). 404 if missing."""
+    def get_swot_report(scope: str, name: str, version: Optional[str] = None):
+        """Read the latest cached SWOT for (scope, name, version). 404 if
+        missing. ``version`` query param defaults to mattress_only."""
         if scope not in ("city", "store"):
             raise HTTPException(status_code=400, detail="scope must be 'city' or 'store'")
-        report = _swot_cache.get_cached(name, scope=scope)
+        v = version or _INSIGHTS_DEFAULT_VERSION
+        if v not in _ALLOWED_VERSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"version must be one of {_ALLOWED_VERSIONS}",
+            )
+        report = _swot_cache.get_cached(name, scope=scope, version=v)
         if report is None:
             raise HTTPException(
                 status_code=404,
-                detail={"reason": "not_generated", "scope": scope, "name": name},
+                detail={"reason": "not_generated", "scope": scope, "name": name, "version": v},
             )
         return {
             "scope": scope,
             "name": name,
+            "version": v,
             "stale": _swot_cache.is_stale(report),
             "report": report.model_dump(mode="json"),
         }
 
     @app.post("/api/swot-reports/refresh")
     def refresh_swot_report(request: _SwotRefreshRequest):
-        """Synchronously regenerate the SWOT for (scope, name).
+        """Synchronously regenerate the SWOT for (scope, name, version).
 
         Open to anyone logged into the analyzer (matches the Q5 default —
         the analyzer's static admin/admin login means everyone IS admin).
-        Returns the fresh report on success.
+        Returns the fresh report on success. Per spec, only the currently-
+        selected version is regenerated (the other version stays cached).
         """
         if request.scope not in ("city", "store"):
             raise HTTPException(status_code=400, detail="scope must be 'city' or 'store'")
+        v = request.version or _INSIGHTS_DEFAULT_VERSION
+        if v not in _ALLOWED_VERSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"version must be one of {_ALLOWED_VERSIONS}",
+            )
         try:
             report = _swot_generate(
                 request.name,
                 scope=request.scope,
+                version=v,
                 actor_email="insights-analyzer",
             )
         except _SWOTGenerationError as exc:
@@ -247,6 +275,7 @@ if TRAINER_ENABLED:
         return {
             "scope": request.scope,
             "name": request.name,
+            "version": v,
             "stale": False,
             "report": report.model_dump(mode="json"),
         }

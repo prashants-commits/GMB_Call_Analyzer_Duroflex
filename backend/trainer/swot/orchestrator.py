@@ -44,6 +44,7 @@ def generate_swot(
     *,
     n: int = 100,
     scope: str = "store",
+    version: str = "all_calls",
     actor_staff_id: Optional[str] = None,
     actor_email: Optional[str] = None,
 ) -> SWOTReport:
@@ -52,6 +53,13 @@ def generate_swot(
     ``scope='store'`` (default): pulls the latest ``n`` calls for the named
     store. ``scope='city'``: pulls latest ``n`` calls across ALL stores in
     the named city (resolved via city_store_mapping.json).
+
+    ``version`` selects the call set:
+      - ``'all_calls'``: every PRE_PURCHASE call (legacy behaviour).
+      - ``'mattress_only'``: only calls with a mattress product category
+        (see input_adapter.MATTRESS_CATEGORIES).
+    The cached row is keyed by ``(scope, store_name, version)`` so both
+    versions can coexist and the Insights UI toggle is instant.
 
     Despite the historical parameter name ``store_name``, when scope='city'
     pass the city name here — it's persisted as the cache key. Single
@@ -63,23 +71,26 @@ def generate_swot(
     """
     if scope not in ("store", "city"):
         raise SWOTGenerationError(f"invalid scope {scope!r}", stage="input")
+    if version not in ("all_calls", "mattress_only"):
+        raise SWOTGenerationError(f"invalid version {version!r}", stage="input")
 
     audit.audit(
         actor_staff_id or "system",
         "swot.generation.started",
         target=store_name,
         actor_email=actor_email,
-        payload={"n": n, "scope": scope},
+        payload={"n": n, "scope": scope, "version": version},
     )
 
     try:
         if scope == "city":
-            rows = latest_calls_for_city(store_name, n=n)
+            rows = latest_calls_for_city(store_name, n=n, version=version)
         else:
-            rows = latest_calls_for_store(store_name, n=n)
+            rows = latest_calls_for_store(store_name, n=n, version=version)
         if not rows:
             raise SWOTGenerationError(
-                f"No calls found for {scope} '{store_name}'", stage="input"
+                f"No calls found for {scope} '{store_name}' (version={version})",
+                stage="input",
             )
         batches = chunk_into_batches(rows, batch_size=20)
 
@@ -92,7 +103,7 @@ def generate_swot(
             map_cost_inr=stage1.cost_inr,
         )
 
-        cache.put_cache(stage2.report, scope=scope)
+        cache.put_cache(stage2.report, scope=scope, version=version)
         audit.audit(
             actor_staff_id or "system",
             "swot.generation.completed",
@@ -100,6 +111,7 @@ def generate_swot(
             actor_email=actor_email,
             payload={
                 "scope": scope,
+                "version": version,
                 "input_call_count": stage2.report.input_call_count,
                 "cost_inr": stage2.report.cost_inr,
                 "n_strengths": len(stage2.report.strengths),
@@ -109,46 +121,46 @@ def generate_swot(
         return stage2.report
 
     except SWOTGenerationError as exc:
-        cache.put_failure(store_name, f"{exc.stage}: {exc.reason}", scope=scope)
+        cache.put_failure(store_name, f"{exc.stage}: {exc.reason}", scope=scope, version=version)
         audit.audit(
             actor_staff_id or "system",
             "swot.generation.failed",
             target=store_name,
             actor_email=actor_email,
-            payload={"scope": scope, "stage": exc.stage, "reason": exc.reason},
+            payload={"scope": scope, "version": version, "stage": exc.stage, "reason": exc.reason},
         )
         raise
 
     except Stage1Error as exc:
-        cache.put_failure(store_name, f"stage1: {exc.reason}", model=SWOT_MAP_MODEL, scope=scope)
+        cache.put_failure(store_name, f"stage1: {exc.reason}", model=SWOT_MAP_MODEL, scope=scope, version=version)
         audit.audit(
             actor_staff_id or "system",
             "swot.generation.failed",
             target=store_name,
             actor_email=actor_email,
-            payload={"scope": scope, "stage": "stage1", "reason": exc.reason},
+            payload={"scope": scope, "version": version, "stage": "stage1", "reason": exc.reason},
         )
         raise SWOTGenerationError(exc.reason, stage="stage1") from exc
 
     except Stage2Error as exc:
-        cache.put_failure(store_name, f"stage2: {exc.reason}", scope=scope)
+        cache.put_failure(store_name, f"stage2: {exc.reason}", scope=scope, version=version)
         audit.audit(
             actor_staff_id or "system",
             "swot.generation.failed",
             target=store_name,
             actor_email=actor_email,
-            payload={"scope": scope, "stage": "stage2", "reason": exc.reason},
+            payload={"scope": scope, "version": version, "stage": "stage2", "reason": exc.reason},
         )
         raise SWOTGenerationError(exc.reason, stage="stage2") from exc
 
     except Exception as exc:
-        logger.exception("swot.generation unexpected failure for %s/%s", scope, store_name)
-        cache.put_failure(store_name, f"unexpected: {type(exc).__name__}: {exc}", scope=scope)
+        logger.exception("swot.generation unexpected failure for %s/%s/%s", scope, version, store_name)
+        cache.put_failure(store_name, f"unexpected: {type(exc).__name__}: {exc}", scope=scope, version=version)
         audit.audit(
             actor_staff_id or "system",
             "swot.generation.failed",
             target=store_name,
             actor_email=actor_email,
-            payload={"scope": scope, "stage": "unknown", "reason": str(exc)},
+            payload={"scope": scope, "version": version, "stage": "unknown", "reason": str(exc)},
         )
         raise SWOTGenerationError(str(exc), stage="unknown") from exc

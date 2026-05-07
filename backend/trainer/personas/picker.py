@@ -57,8 +57,10 @@ def _skills_from_swot_weakness(theme: str, detail: str) -> List[str]:
 
 def _top_skill_focus_for_store(store_name: str) -> Optional[List[str]]:
     """Return the focus skills implied by the top SWOT weakness for a store,
-    or ``None`` if no SWOT is cached or no weakness maps to a known skill."""
-    report = swot_cache.get_cached(store_name)
+    or ``None`` if no SWOT is cached or no weakness maps to a known skill.
+
+    Reads the mattress_only SWOT (matches the AI Trainer-side default)."""
+    report = swot_cache.get_cached(store_name, version="mattress_only")
     if report is None or not report.weaknesses:
         return None
     # Top weakness = first item (Stage-2 Reduce sorts by severity/frequency).

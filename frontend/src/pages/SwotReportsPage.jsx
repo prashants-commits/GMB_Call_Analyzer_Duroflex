@@ -21,8 +21,18 @@ import { downloadSwotPdf } from '../utils/swotPdf';
 const TAB_CITY = 'city';
 const TAB_STORE = 'store';
 
+const VERSION_ALL = 'all_calls';
+const VERSION_MATTRESS = 'mattress_only';
+const DEFAULT_VERSION = VERSION_MATTRESS;
+
+const VERSION_NOTES = {
+  [VERSION_MATTRESS]: 'Showing SWOT generated from mattress-category calls only',
+  [VERSION_ALL]: 'Showing SWOT generated from all call categories.',
+};
+
 export default function SwotReportsPage() {
   const [tab, setTab] = useState(TAB_CITY);
+  const [version, setVersion] = useState(DEFAULT_VERSION);
   const [options, setOptions] = useState({ cities: [], stores: [] });
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [selected, setSelected] = useState({ city: '', store: '' });
@@ -49,13 +59,16 @@ export default function SwotReportsPage() {
           city: (d.cities || [])[0] || '',
           store: (d.stores || [])[0] || '',
         });
+        if (typeof d?.default_version === 'string' && (d.default_version === VERSION_ALL || d.default_version === VERSION_MATTRESS)) {
+          setVersion(d.default_version);
+        }
       })
       .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load options'); })
       .finally(() => { if (!cancelled) setOptionsLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  // Whenever tab or selection changes, fetch the report.
+  // Whenever tab, selection, or version changes, fetch the report.
   const currentName = tab === TAB_CITY ? selected.city : selected.store;
   useEffect(() => {
     if (!currentName) {
@@ -68,7 +81,8 @@ export default function SwotReportsPage() {
     setLoading(true);
     setError(null);
     setEmptyState(false);
-    fetch(`/api/swot-reports/${tab}/${encodeURIComponent(currentName)}`)
+    const url = `/api/swot-reports/${tab}/${encodeURIComponent(currentName)}?version=${encodeURIComponent(version)}`;
+    fetch(url)
       .then(async (res) => {
         if (cancelled) return;
         if (res.status === 404) {
@@ -95,7 +109,7 @@ export default function SwotReportsPage() {
       .catch((err) => { if (!cancelled) setError(err.message || 'Failed to load SWOT'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [tab, currentName]);
+  }, [tab, currentName, version]);
 
   async function handleRefresh() {
     if (!currentName) return;
@@ -105,7 +119,7 @@ export default function SwotReportsPage() {
       const res = await fetch('/api/swot-reports/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: tab, name: currentName }),
+        body: JSON.stringify({ scope: tab, name: currentName, version }),
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
@@ -168,6 +182,16 @@ export default function SwotReportsPage() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Version toggle — applies to both City and Store tabs. */}
+        <div className="flex items-center gap-3 mb-3 print:hidden">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Version</span>
+          <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+            <VersionChip active={version === VERSION_MATTRESS} onClick={() => setVersion(VERSION_MATTRESS)}>Mattress calls</VersionChip>
+            <VersionChip active={version === VERSION_ALL} onClick={() => setVersion(VERSION_ALL)}>All calls</VersionChip>
+          </div>
+          <span className="text-xs text-slate-500">{VERSION_NOTES[version]}</span>
         </div>
 
         {/* Tabs */}
@@ -265,6 +289,21 @@ function TabButton({ active, onClick, children }) {
       className={`px-4 py-2 text-sm font-bold rounded-lg transition ${
         active
           ? 'bg-slate-900 text-white shadow-sm'
+          : 'text-slate-600 hover:bg-slate-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function VersionChip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+        active
+          ? 'bg-indigo-600 text-white shadow-sm'
           : 'text-slate-600 hover:bg-slate-100'
       }`}
     >

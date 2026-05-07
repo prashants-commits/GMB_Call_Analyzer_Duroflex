@@ -6,6 +6,13 @@ its read methods.
 
 City lookups use ``backend/data/city_store_mapping.json`` to resolve a city
 to its set of stores, then union the stores' calls.
+
+Version filter (added with the Insights "All calls / Mattress calls" toggle):
+``version='all_calls'`` keeps the historical behaviour (no category filter).
+``version='mattress_only'`` restricts to calls whose ``product_category``
+is one of the mattress product lines defined in ``MATTRESS_CATEGORIES``.
+The filter is applied BEFORE the latest-N truncation, so we always return
+up to N matching calls — not "N latest of which some happen to be mattress".
 """
 
 from __future__ import annotations
@@ -25,8 +32,40 @@ logger = logging.getLogger("trainer.swot.input")
 DEFAULT_N = 100
 HARD_CAP = 250  # mirrors /api/generate-insights
 
+# Mattress category allow-list for ``version='mattress_only'``. Values are
+# the canonical UPPERCASE strings as they appear in the GMB CSV column
+# ``6_Product_Intelligence_Category`` (which surfaces as ``product_category``
+# in the analytics rows). Comparison is case-insensitive at the call site.
+MATTRESS_CATEGORIES = frozenset({
+    "DUROPEDIC MATTRESS",
+    "ENERGISE MATTRESS",
+    "ESSENTIAL MATTRESS",
+    "MATTRESS",
+    "NATURAL LIVING MATTRESS",
+})
 
-def latest_calls_for_store(store_name: str, n: int = DEFAULT_N) -> List[Dict[str, Any]]:
+ALLOWED_VERSIONS = ("all_calls", "mattress_only")
+
+
+def _is_mattress_call(row: Dict[str, Any]) -> bool:
+    cat = (row.get("product_category") or "").strip().upper()
+    return cat in MATTRESS_CATEGORIES
+
+
+def _filter_by_version(rows: List[Dict[str, Any]], version: str) -> List[Dict[str, Any]]:
+    if version == "all_calls":
+        return rows
+    if version == "mattress_only":
+        return [r for r in rows if _is_mattress_call(r)]
+    raise ValueError(f"unknown SWOT version {version!r}; allowed: {ALLOWED_VERSIONS}")
+
+
+def latest_calls_for_store(
+    store_name: str,
+    n: int = DEFAULT_N,
+    *,
+    version: str = "all_calls",
+) -> List[Dict[str, Any]]:
     """Return the latest ``n`` calls (most recent first) for a store, in the
     same shape as ``CallDataStore.get_insight_columns(...)``.
 
@@ -48,13 +87,22 @@ def latest_calls_for_store(store_name: str, n: int = DEFAULT_N) -> List[Dict[str
     if not matching:
         return []
 
+    pre_filter_count = len(matching)
+    matching = _filter_by_version(matching, version)
+    if not matching:
+        logger.info(
+            "swot.input store=%s version=%s pre_filter=%d post_filter=0 → no matches",
+            store_name, version, pre_filter_count,
+        )
+        return []
+
     matching.sort(key=lambda c: parse_call_date(c.get("call_date")), reverse=True)
 
     top_clean_numbers = [c["clean_number"] for c in matching[:n] if c.get("clean_number")]
     rich = cds.get_insight_columns(top_clean_numbers)
     logger.info(
-        "swot.input store=%s requested=%d matching=%d returned=%d",
-        store_name, n, len(matching), len(rich),
+        "swot.input store=%s version=%s requested=%d pre_filter=%d post_filter=%d returned=%d",
+        store_name, version, n, pre_filter_count, len(matching), len(rich),
     )
     return rich
 
@@ -105,7 +153,12 @@ def stores_for_city(city_name: str) -> List[str]:
     return list(data.get(city_name, []))
 
 
-def latest_calls_for_city(city_name: str, n: int = DEFAULT_N) -> List[Dict[str, Any]]:
+def latest_calls_for_city(
+    city_name: str,
+    n: int = DEFAULT_N,
+    *,
+    version: str = "all_calls",
+) -> List[Dict[str, Any]]:
     """Return the latest ``n`` calls (most recent first) across ALL stores in
     a city, in the same shape as ``CallDataStore.get_insight_columns(...)``.
 
@@ -133,11 +186,20 @@ def latest_calls_for_city(city_name: str, n: int = DEFAULT_N) -> List[Dict[str, 
     if not matching:
         return []
 
+    pre_filter_count = len(matching)
+    matching = _filter_by_version(matching, version)
+    if not matching:
+        logger.info(
+            "swot.input city=%s version=%s pre_filter=%d post_filter=0 → no matches",
+            city_name, version, pre_filter_count,
+        )
+        return []
+
     matching.sort(key=lambda c: parse_call_date(c.get("call_date")), reverse=True)
     top_clean_numbers = [c["clean_number"] for c in matching[:n] if c.get("clean_number")]
     rich = cds.get_insight_columns(top_clean_numbers)
     logger.info(
-        "swot.input city=%s stores=%d requested=%d matching=%d returned=%d",
-        city_name, len(stores), n, len(matching), len(rich),
+        "swot.input city=%s stores=%d version=%s requested=%d pre_filter=%d post_filter=%d returned=%d",
+        city_name, len(stores), version, n, pre_filter_count, len(matching), len(rich),
     )
     return rich
